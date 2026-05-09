@@ -1,0 +1,43 @@
+import type { AuditEntry } from "@/lib/zod/audit";
+
+export const mockAuditLog: AuditEntry[] = [
+  {
+    id: "a0000000-0000-0000-0000-000000000001",
+    action: "ADMIN_LOGIN",
+    actorId: "c3d4e5f6-a7b8-9012-cdef-123456789012",
+    actorName: "Chidi Okonkwo",
+    actorRole: "INVESTMENT_MANAGER",
+    entityId: null,
+    entityType: null,
+    entityName: null,
+    metadata: { browser: "Chrome", os: "macOS" },
+    ipAddress: "192.168.1.1",
+    timestamp: new Date(Date.now() - 3600000).toISOString(),
+  },
+  {
+    id: "a0000000-0000-0000-0000-000000000002",
+    action: "COMPANY_APPROVED",
+    actorId: "c3d4e5f6-a7b8-9012-cdef-123456789012",
+    actorName: "Chidi Okonkwo",
+    actorRole: "INVESTMENT_MANAGER",
+    entityId: "c001-aaaa-bbbb-cccc-dddddddddd01",
+    entityType: "COMPANY",
+    entityName: "Lagos AgriTech Ltd",
+    metadata: { reason: "Meets all criteria" },
+    ipAddress: "192.168.1.1",
+    timestamp: new Date(Date.now() - 7200000).toISOString(),
+  },
+  {
+    id: "a0000000-0000-0000-0000-000000000003",
+    action: "CONFIG_UPDATED",
+    actorId: "c3d4e5f6-a7b8-9012-cdef-123456789012",
+    actorName: "Chidi Okonkwo",
+    actorRole: "INVESTMENT_MANAGER",
+    entityId: null,
+    entityType: "SYSTEM_CONFIG",
+    entityName: "Interest Rate",
+    metadata: { old: 12, new: 15 },
+    ipAddress: "192.168.1.1",
+    timestamp: new Date(Date.now() - 86400000).toISOString(),
+  },
+];

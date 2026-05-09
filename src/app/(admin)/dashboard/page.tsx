@@ -203,7 +203,7 @@ export default function DashboardPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
                 <XAxis dataKey="month" tick={{ fontSize: 10, fill: "#9CA3AF" }} axisLine={false} tickLine={false} />
                 <YAxis
-                  hide={window.innerWidth < 640}
+                  hide={typeof window !== "undefined" && window.innerWidth < 640}
                   tick={{ fontSize: 10, fill: "#9CA3AF" }}
                   axisLine={false}
                   tickLine={false}

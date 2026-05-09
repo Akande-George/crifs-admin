@@ -47,9 +47,13 @@ export default function LoginPage() {
         className="flex w-full flex-col justify-center px-8 md:w-1/2 lg:px-24 xl:px-32"
       >
         <div className="mb-10 flex justify-center items-center gap-2">
-          <span className="text-xl font-bold tracking-tight text-neutral-900">
-            CRIFS <span className="text-brand-500">Admin</span>
-          </span>
+          <Image 
+            src="/logo.svg" 
+            alt="CRIFS Admin" 
+            width={120} 
+            height={40} 
+            priority
+          />
         </div>
 
         <div className="space-y-2">
@@ -139,6 +143,78 @@ export default function LoginPage() {
           </form>
         </div>
       </motion.div>
+
+      {/* Right Side: Visual */}
+      <div className="relative hidden w-1/2 overflow-hidden md:block">
+        <motion.div
+          initial={{ opacity: 0, scale: 1.1 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 1.5, ease: "easeOut" }}
+          className="absolute inset-0 z-0"
+        >
+          <div className="absolute inset-0 bg-brand-900/40 mix-blend-multiply transition-opacity" />
+          <Image 
+            src="/images/auth-bg.png" 
+            alt="Auth background" 
+            fill
+            className="object-cover"
+            priority
+          />
+        </motion.div>
+
+        {/* Overlay Content */}
+        <div className="relative z-10 flex h-full flex-col justify-between p-12 text-white">
+          <div className="flex items-center gap-2">
+            <Image 
+              src="/logo.svg" 
+              alt="CRIFS Admin" 
+              width={80} 
+              height={30} 
+              className="brightness-0 invert"
+            />
+          </div>
+
+          <div className="space-y-6 max-w-md">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.8, duration: 0.6 }}
+            >
+              <h2 className="text-4xl font-bold leading-tight">
+                Empowering the future of <span className="text-brand-400 italic underline decoration-brand-400/30 underline-offset-8">Nigerian</span> investment.
+              </h2>
+            </motion.div>
+            
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 1, duration: 0.6 }}
+              className="space-y-4"
+            >
+              {[
+                "Advanced AI-driven KYC analysis",
+                "Automated disbursement workflows",
+                "Real-time governance & voting"
+              ].map((text, i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <div className="flex h-5 w-5 items-center justify-center rounded-full bg-brand-400/20 text-brand-400">
+                    <Check className="h-3 w-3" />
+                  </div>
+                  <span className="text-sm font-medium text-neutral-200">{text}</span>
+                </div>
+              ))}
+            </motion.div>
+          </div>
+
+          <div className="flex items-center justify-between text-xs font-medium text-neutral-400">
+            <span>© 2026 CRIFS Platform</span>
+            <div className="flex gap-4">
+              <Link href="#" className="hover:text-white transition-colors">Privacy</Link>
+              <Link href="#" className="hover:text-white transition-colors">Terms</Link>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

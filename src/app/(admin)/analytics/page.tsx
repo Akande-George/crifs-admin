@@ -25,7 +25,7 @@ export default function AnalyticsPage() {
     const sectors: Record<string, number> = {};
     fundingRequests.forEach(fr => {
       const company = companies.find(c => c.id === fr.companyId);
-      const sector = company?.sector || "Other";
+      const sector = company?.industry || "Other";
       sectors[sector] = (sectors[sector] || 0) + fr.amountRequested;
     });
     return Object.entries(sectors).map(([name, value]) => ({ name, value }));
@@ -91,7 +91,7 @@ export default function AnalyticsPage() {
                 <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 600, fill: '#9CA3AF' }} tickFormatter={(val) => `₦${val/1000000}M`} />
                 <Tooltip 
                   contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)', padding: '12px' }}
-                  formatter={(val: number) => [formatNairaCompact(val), ""]}
+                  formatter={(val: any) => [formatNairaCompact(Number(val)), ""]}
                 />
                 <Area type="monotone" dataKey="disbursed" stroke="#3B82F6" strokeWidth={3} fillOpacity={1} fill="url(#colorDisbursed)" />
                 <Area type="monotone" dataKey="repaid" stroke="#10B981" strokeWidth={3} fillOpacity={1} fill="url(#colorRepaid)" />
@@ -115,7 +115,7 @@ export default function AnalyticsPage() {
                     <Cell key={`cell-${index}`} fill={SECTOR_COLORS[index % SECTOR_COLORS.length]} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(val: number) => formatNairaCompact(val)} />
+                <Tooltip formatter={(val: any) => formatNairaCompact(Number(val))} />
               </PieChart>
             </ResponsiveContainer>
           </div>

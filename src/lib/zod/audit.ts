@@ -20,6 +20,8 @@ export const AuditActionSchema = z.enum([
   "NOTIFICATION_SENT",
   "ADMIN_LOGIN",
   "ADMIN_LOGOUT",
+  "VOTING_ROUND_COMPLETED",
+  "VOTING_ROUND_STARTED",
 ]);
 
 export const AuditEntrySchema = z.object({

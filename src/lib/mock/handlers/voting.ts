@@ -94,7 +94,7 @@ export async function overrideVotingRound(roundId: string, result: "APPROVED" | 
   });
 
   writeAuditLog({
-    action: "VOTING_OVERRIDE",
+    action: "VOTE_OVERRIDDEN",
     actor: store.currentAdmin,
     entityId: roundId,
     entityType: "VOTING_ROUND",

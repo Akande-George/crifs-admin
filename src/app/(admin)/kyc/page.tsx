@@ -87,11 +87,9 @@ export default function KYCQueuePage() {
         </div>
         <div className="flex items-center gap-2">
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="h-10">
-                <Filter className="mr-2 h-4 w-4" />
-                Status: {statusFilter === "ALL" ? "All" : statusFilter.replace(/_/g, " ")}
-              </Button>
+            <DropdownMenuTrigger className="flex items-center gap-2 h-10 px-4 rounded-lg border border-neutral-200 bg-white text-sm font-bold text-neutral-600 hover:bg-neutral-50 transition-all">
+              <Filter className="mr-2 h-4 w-4" />
+              Status: {statusFilter === "ALL" ? "All" : statusFilter.replace(/_/g, " ")}
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuItem onClick={() => setStatusFilter("ALL")}>All Statuses</DropdownMenuItem>
@@ -181,10 +179,8 @@ export default function KYCQueuePage() {
                           <Eye className="h-4 w-4 text-neutral-500" />
                         </Button>
                         <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <MoreHorizontal className="h-4 w-4 text-neutral-500" />
-                            </Button>
+                          <DropdownMenuTrigger className="flex h-8 w-8 items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600 transition-colors">
+                            <MoreHorizontal className="h-4 w-4" />
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem className="text-success-600">

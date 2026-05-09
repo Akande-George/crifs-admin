@@ -22,7 +22,7 @@ import {
 import { useMockStore } from "@/lib/mock/store";
 import { StatusBadge } from "@/components/molecules/StatusBadge";
 import { RoleGuardedAction } from "@/components/organisms/RoleGuardedAction";
-import { formatNaira, formatDate, formatRelativeTime, formatRCNumber, formatPhoneNumber } from "@/lib/format";
+import { formatNaira, formatNairaCompact, formatDate, formatRelativeTime, formatRCNumber, formatPhoneNumber } from "@/lib/format";
 import { useToast } from "@/hooks/useToast";
 import { approveCompany, rejectCompany, suspendCompany } from "@/lib/mock/handlers/companies";
 import { cn } from "@/lib/utils";

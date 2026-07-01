@@ -5,37 +5,53 @@ import { motion } from "motion/react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { 
-  ShieldCheck, 
-  Mail, 
-  Lock, 
-  Eye, 
-  EyeOff, 
-  ArrowRight, 
-  Globe,
-  Building2,
+import {
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
+  ArrowRight,
   Check,
-  ShieldCheck as Shield
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { cn } from "@/lib/utils";
+import { useLogin } from "@/lib/hooks/api/useAuth";
 
 export default function LoginPage() {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const login = useLogin();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const errorMessage =
+    login.error &&
+    ((login.error as unknown as { message?: string }).message ??
+      "Could not sign in. Check your credentials.");
+
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-    // Simulate login
-    setTimeout(() => {
-      setIsLoading(false);
-      router.push("/dashboard");
-    }, 1500);
+    if (!email.trim() || !password) return;
+    login.mutate(
+      { email: email.trim().toLowerCase(), password },
+      {
+        onSuccess: (result) => {
+          // Non-admin users can't use this dashboard.
+          if (result.user.role !== "ADMIN") {
+            // Sign them right back out — clear happens via error path when
+            // guard mounts. Simplest: show an error here.
+            alert(
+              "This account isn't an admin. Ask an existing admin to promote you.",
+            );
+            return;
+          }
+          router.push("/dashboard");
+        },
+      },
+    );
   };
+  const isLoading = login.isPending;
 
   return (
     <div className="flex justify-center h-screen w-full overflow-hidden bg-white">
@@ -77,7 +93,11 @@ export default function LoginPage() {
                   id="email"
                   type="email"
                   placeholder="admin@crifs.ng"
+                  autoComplete="email"
                   required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={isLoading}
                   className="h-12 pl-10 border-neutral-200 focus:ring-brand-500/20"
                 />
               </div>
@@ -101,7 +121,11 @@ export default function LoginPage() {
                   id="password"
                   type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
+                  autoComplete="current-password"
                   required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={isLoading}
                   className="h-12 pl-10 pr-10 border-neutral-200 focus:ring-brand-500/20"
                 />
                 <button
@@ -123,6 +147,12 @@ export default function LoginPage() {
                 Keep me logged in for 30 days
               </label>
             </div>
+
+            {errorMessage && (
+              <div className="rounded-md bg-red-50 border border-red-100 px-3 py-2 text-sm text-red-700">
+                {errorMessage}
+              </div>
+            )}
 
             <Button 
               type="submit" 

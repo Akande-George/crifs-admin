@@ -3,200 +3,350 @@
 import { use, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import Link from "next/link";
-import { ArrowLeft, Users, Phone, Mail, Building2, MapPin, Calendar, Wallet, TrendingUp, ShieldCheck, CheckCircle2, XCircle } from "lucide-react";
-import { useMockStore } from "@/lib/mock/store";
+import {
+  ArrowLeft,
+  Users,
+  Mail,
+  Calendar,
+  Wallet,
+  ShieldCheck,
+  CheckCircle2,
+  XCircle,
+  Building2,
+} from "lucide-react";
+import {
+  useAdminUser,
+  useApproveUserKyc,
+  useRejectUserKyc,
+} from "@/lib/hooks/api/useAdmin";
 import { StatusBadge } from "@/components/molecules/StatusBadge";
-import { RoleGuardedAction } from "@/components/organisms/RoleGuardedAction";
-import { formatNaira, formatNairaCompact, formatDate, formatRelativeTime, formatPhoneNumber, formatPercent } from "@/lib/format";
+import {
+  formatNaira,
+  formatDate,
+  formatRelativeTime,
+} from "@/lib/format";
 import { useToast } from "@/hooks/useToast";
-import { approveAccreditation, rejectAccreditation } from "@/lib/mock/handlers/investors";
 import { cn } from "@/lib/utils";
-
-const TYPE_LABELS = { INDIVIDUAL: "Individual", INSTITUTIONAL: "Institutional", CORPORATE: "Corporate" } as const;
-const RISK_LABELS = { CONSERVATIVE: "Conservative", MODERATE: "Moderate", AGGRESSIVE: "Aggressive" } as const;
-const RISK_COLORS = { CONSERVATIVE: "text-success-600 bg-success-50", MODERATE: "text-warning-600 bg-warning-50", AGGRESSIVE: "text-danger-600 bg-danger-50" } as const;
 
 const TABS = [
   { id: "overview", label: "Overview", icon: Users },
-  { id: "investments", label: "Investments", icon: Wallet },
-  { id: "documents", label: "Documents", icon: ShieldCheck },
+  { id: "verifications", label: "Verifications", icon: ShieldCheck },
+  { id: "banks", label: "Bank Accounts", icon: Wallet },
 ] as const;
 type TabId = (typeof TABS)[number]["id"];
 
-export default function InvestorDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default function InvestorDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const { id } = use(params);
-  const investors = useMockStore((s) => s.investors);
-  const fundingRequests = useMockStore((s) => s.fundingRequests);
-  const investor = investors.find((inv) => inv.id === id);
-  const [activeTab, setActiveTab] = useState<TabId>("overview");
-  const [isActioning, setIsActioning] = useState(false);
+  const { data: investor, isLoading, isError } = useAdminUser(id);
+  const approve = useApproveUserKyc();
+  const reject = useRejectUserKyc();
   const toast = useToast();
+  const [activeTab, setActiveTab] = useState<TabId>("overview");
 
-  if (!investor) {
+  if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center py-24">
-        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-neutral-100 mb-4"><Users className="h-8 w-8 text-neutral-400" /></div>
-        <h2 className="text-lg font-semibold text-neutral-900">Investor not found</h2>
-        <Link href="/investors" className="mt-4 text-sm text-brand-500 hover:text-brand-600 font-medium">← Back to investors</Link>
+      <div className="flex items-center justify-center py-24 text-sm text-neutral-500">
+        Loading…
       </div>
     );
   }
 
+  if (isError || !investor) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24">
+        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-neutral-100 mb-4">
+          <Users className="h-8 w-8 text-neutral-400" />
+        </div>
+        <h2 className="text-lg font-semibold text-neutral-900">
+          Investor not found
+        </h2>
+        <Link
+          href="/investors"
+          className="mt-4 text-sm text-brand-500 hover:text-brand-600 font-medium"
+        >
+          ← Back to investors
+        </Link>
+      </div>
+    );
+  }
+
+  const canReview = investor.kycStatus === "PENDING";
+  const initials = investor.name
+    .split(" ")
+    .map((s) => s[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
   const handleApprove = async () => {
-    setIsActioning(true);
-    const result = await approveAccreditation(investor.id);
-    setIsActioning(false);
-    if (result.ok) toast.success("Accreditation approved", `${investor.firstName} ${investor.lastName} is now accredited`);
-    else toast.error("Failed", result.error);
+    try {
+      await approve.mutateAsync({
+        userId: investor.id,
+        notes: "Approved via admin dashboard",
+      });
+      toast.success("KYC approved", `${investor.name} is now verified`);
+    } catch (e) {
+      toast.error(
+        "Failed",
+        (e as { message?: string })?.message ?? "Could not approve",
+      );
+    }
   };
 
   const handleReject = async () => {
-    setIsActioning(true);
-    const result = await rejectAccreditation(investor.id, "Insufficient documentation");
-    setIsActioning(false);
-    if (result.ok) toast.success("Accreditation rejected", `${investor.firstName} ${investor.lastName} has been rejected`);
-    else toast.error("Failed", result.error);
+    try {
+      await reject.mutateAsync({
+        userId: investor.id,
+        notes: "Rejected via admin dashboard",
+      });
+      toast.success("KYC rejected", `${investor.name} has been rejected`);
+    } catch (e) {
+      toast.error(
+        "Failed",
+        (e as { message?: string })?.message ?? "Could not reject",
+      );
+    }
   };
 
-  const returnRate = investor.totalInvested > 0 ? ((investor.portfolioValue - investor.totalInvested) / investor.totalInvested) * 100 : 0;
+  const busy = approve.isPending || reject.isPending;
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2 text-sm">
-        <Link href="/investors" className="flex items-center gap-1 text-neutral-500 hover:text-neutral-700 transition-colors"><ArrowLeft className="h-4 w-4" />Investors</Link>
-        <span className="text-neutral-300">/</span>
-        <span className="text-neutral-900 font-medium">{investor.firstName} {investor.lastName}</span>
+      <Link
+        href="/investors"
+        className="inline-flex items-center gap-2 text-sm text-neutral-500 hover:text-neutral-900 transition-colors"
+      >
+        <ArrowLeft className="h-4 w-4" /> Back to investors
+      </Link>
+
+      <div className="rounded-2xl border border-neutral-200 bg-surface p-6">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-4">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-100 text-brand-500 font-semibold">
+              {initials}
+            </div>
+            <div>
+              <h1 className="text-xl font-semibold text-neutral-900 tracking-tight">
+                {investor.name}
+              </h1>
+              <div className="flex items-center gap-3 text-sm text-neutral-500 mt-1 flex-wrap">
+                <span className="inline-flex items-center gap-1">
+                  <Mail className="h-3.5 w-3.5" /> {investor.email}
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <Calendar className="h-3.5 w-3.5" />{" "}
+                  Joined {formatRelativeTime(investor.createdAt)}
+                </span>
+                {investor.company && (
+                  <span className="inline-flex items-center gap-1">
+                    <Building2 className="h-3.5 w-3.5" />{" "}
+                    {investor.company.name}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <StatusBadge status={investor.kycStatus} size="md" />
+            {canReview && (
+              <>
+                <button
+                  onClick={handleApprove}
+                  disabled={busy}
+                  className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg bg-success-500 text-white text-xs font-medium hover:bg-success-600 disabled:opacity-50 transition-colors"
+                >
+                  <CheckCircle2 className="h-4 w-4" /> Approve
+                </button>
+                <button
+                  onClick={handleReject}
+                  disabled={busy}
+                  className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg bg-danger-500 text-white text-xs font-medium hover:bg-danger-600 disabled:opacity-50 transition-colors"
+                >
+                  <XCircle className="h-4 w-4" /> Reject
+                </button>
+              </>
+            )}
+          </div>
+        </div>
       </div>
 
-      <div className="flex items-start justify-between">
-        <div className="flex items-start gap-4">
-          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-100 text-brand-500 font-bold text-lg">
-            {investor.firstName[0]}{investor.lastName[0]}
-          </div>
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-xl font-semibold text-neutral-900">{investor.firstName} {investor.lastName}</h1>
-              <StatusBadge status={investor.accreditationStatus} size="md" />
-              <span className={cn("text-[11px] font-medium px-2 py-0.5 rounded-full",
-                investor.type === "INDIVIDUAL" ? "bg-brand-50 text-brand-600" :
-                investor.type === "INSTITUTIONAL" ? "bg-success-50 text-success-600" : "bg-warning-50 text-warning-600"
-              )}>{TYPE_LABELS[investor.type]}</span>
-            </div>
-            {investor.companyName && <p className="text-sm text-neutral-500 mt-0.5 flex items-center gap-1"><Building2 className="h-3.5 w-3.5" />{investor.companyName}</p>}
-            <div className="flex items-center gap-4 mt-2 text-xs text-neutral-400">
-              <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{investor.city}, {investor.state}</span>
-              <span>Last active {formatRelativeTime(investor.lastActivityAt)}</span>
-            </div>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {(investor.accreditationStatus === "PENDING" || investor.accreditationStatus === "IN_REVIEW") && (
-            <>
-              <RoleGuardedAction action="investor:approve_accreditation">
-                <button onClick={handleApprove} disabled={isActioning}
-                  className="flex items-center gap-2 h-9 px-4 rounded-lg bg-success-500 text-white text-sm font-medium hover:bg-success-600 transition-colors disabled:opacity-50 active:scale-[0.97]">
-                  <CheckCircle2 className="h-4 w-4" />Approve
-                </button>
-              </RoleGuardedAction>
-              <RoleGuardedAction action="investor:approve_accreditation">
-                <button onClick={handleReject} disabled={isActioning}
-                  className="flex items-center gap-2 h-9 px-4 rounded-lg bg-danger-50 text-danger-600 text-sm font-medium hover:bg-danger-100 transition-colors disabled:opacity-50 active:scale-[0.97]">
-                  <XCircle className="h-4 w-4" />Reject
-                </button>
-              </RoleGuardedAction>
-            </>
-          )}
-        </div>
-      </div>
-
-      <div className="border-b border-neutral-200">
-        <div className="flex gap-0">
-          {TABS.map((tab) => (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              className={cn("relative flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors",
-                activeTab === tab.id ? "text-brand-500" : "text-neutral-500 hover:text-neutral-700")}>
-              <tab.icon className="h-4 w-4" />{tab.label}
-              {activeTab === tab.id && <motion.div className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand-500" layoutId="investor-tab-indicator" transition={{ duration: 0.2 }} />}
-            </button>
-          ))}
-        </div>
+      <div className="border-b border-neutral-200 flex items-center gap-1">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setActiveTab(t.id)}
+            className={cn(
+              "inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors",
+              activeTab === t.id
+                ? "border-brand-500 text-brand-500"
+                : "border-transparent text-neutral-500 hover:text-neutral-800",
+            )}
+          >
+            <t.icon className="h-4 w-4" /> {t.label}
+          </button>
+        ))}
       </div>
 
       <AnimatePresence mode="wait">
-        <motion.div key={activeTab} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.16 }}>
+        <motion.div
+          key={activeTab}
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -6 }}
+          transition={{ duration: 0.18 }}
+        >
           {activeTab === "overview" && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2 space-y-6">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {[
-                    { label: "Total Invested", value: formatNaira(investor.totalInvested) },
-                    { label: "Portfolio Value", value: formatNaira(investor.portfolioValue) },
-                    { label: "Return", value: returnRate > 0 ? `+${formatPercent(returnRate)}` : formatPercent(returnRate) },
-                    { label: "Active Investments", value: String(investor.activeInvestments) },
-                  ].map((m) => (
-                    <div key={m.label} className="rounded-xl border border-neutral-200 bg-surface p-4">
-                      <p className="text-xs text-neutral-500">{m.label}</p>
-                      <p className={cn("text-lg font-semibold mt-1", m.label === "Return" && returnRate > 0 ? "text-success-600" : "text-neutral-900")}>{m.value}</p>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-xl border border-neutral-200 bg-surface p-5">
+                <p className="text-xs font-medium text-neutral-500 uppercase tracking-wider">
+                  Wallet
+                </p>
+                {investor.wallet ? (
+                  <div className="mt-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-neutral-500">
+                        Available
+                      </span>
+                      <span className="text-lg font-semibold text-neutral-900">
+                        {formatNaira(Number(investor.wallet.available))}
+                      </span>
                     </div>
-                  ))}
-                </div>
-                <div className="rounded-xl border border-neutral-200 bg-surface p-5">
-                  <h3 className="text-sm font-semibold text-neutral-900 mb-4">Contact Information</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-neutral-100"><Phone className="h-4 w-4 text-neutral-500" /></div>
-                      <div><p className="text-xs text-neutral-500">Phone</p><p className="text-sm font-medium text-neutral-900">{formatPhoneNumber(investor.phone)}</p></div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-neutral-100"><Mail className="h-4 w-4 text-neutral-500" /></div>
-                      <div><p className="text-xs text-neutral-500">Email</p><p className="text-sm font-medium text-neutral-900">{investor.email}</p></div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-neutral-100"><MapPin className="h-4 w-4 text-neutral-500" /></div>
-                      <div><p className="text-xs text-neutral-500">Location</p><p className="text-sm font-medium text-neutral-900">{investor.city}, {investor.state}</p></div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-neutral-500">Locked</span>
+                      <span className="text-sm text-neutral-700">
+                        {formatNaira(Number(investor.wallet.locked))}
+                      </span>
                     </div>
                   </div>
-                </div>
+                ) : (
+                  <p className="text-sm text-neutral-400 mt-3">
+                    No wallet yet
+                  </p>
+                )}
               </div>
-              <div className="space-y-6">
-                <div className="rounded-xl border border-neutral-200 bg-surface p-5">
-                  <h3 className="text-sm font-semibold text-neutral-900 mb-4">Details</h3>
-                  <div className="space-y-3">
-                    {[
-                      { label: "Type", value: TYPE_LABELS[investor.type] },
-                      { label: "Risk Tolerance", value: RISK_LABELS[investor.riskTolerance] },
-                      { label: "Accredited", value: investor.accreditationDate ? formatDate(investor.accreditationDate) : "N/A" },
-                      { label: "Joined CRIFS", value: formatDate(investor.createdAt) },
-                      { label: "Last Updated", value: formatDate(investor.updatedAt) },
-                    ].map((d) => (
-                      <div key={d.label} className="flex items-center justify-between text-sm">
-                        <span className="text-neutral-500">{d.label}</span>
-                        <span className="font-medium text-neutral-900">{d.value}</span>
-                      </div>
+
+              <div className="rounded-xl border border-neutral-200 bg-surface p-5">
+                <p className="text-xs font-medium text-neutral-500 uppercase tracking-wider">
+                  Virtual Funding Account
+                </p>
+                {investor.virtualAccount ? (
+                  <div className="mt-3 space-y-2">
+                    <p className="text-lg font-semibold text-neutral-900 tabular-nums">
+                      {investor.virtualAccount.accountNumber}
+                    </p>
+                    <p className="text-sm text-neutral-500">
+                      {investor.virtualAccount.bankName}
+                    </p>
+                    <p className="text-xs text-neutral-400">
+                      {investor.virtualAccount.accountName}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-neutral-400 mt-3">
+                    Not provisioned yet
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {activeTab === "verifications" && (
+            <div className="rounded-xl border border-neutral-200 bg-surface overflow-hidden">
+              {investor.verifications.length === 0 ? (
+                <p className="text-sm text-neutral-400 p-8 text-center">
+                  No verifications recorded.
+                </p>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-neutral-50/80">
+                      <th className="text-left py-3 px-4 text-xs font-medium text-neutral-500 uppercase tracking-wider">
+                        Type
+                      </th>
+                      <th className="text-left py-3 px-4 text-xs font-medium text-neutral-500 uppercase tracking-wider">
+                        Provider
+                      </th>
+                      <th className="text-left py-3 px-4 text-xs font-medium text-neutral-500 uppercase tracking-wider">
+                        Status
+                      </th>
+                      <th className="hidden md:table-cell text-left py-3 px-4 text-xs font-medium text-neutral-500 uppercase tracking-wider">
+                        Completed
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-100">
+                    {investor.verifications.map((v) => (
+                      <tr key={v.id}>
+                        <td className="py-3 px-4 font-medium text-neutral-800">
+                          {v.type}
+                        </td>
+                        <td className="py-3 px-4 text-neutral-600">
+                          {v.provider}
+                        </td>
+                        <td className="py-3 px-4">
+                          <StatusBadge status={v.status} />
+                        </td>
+                        <td className="hidden md:table-cell py-3 px-4 text-neutral-500 text-xs">
+                          {v.completedAt
+                            ? formatDate(v.completedAt)
+                            : "—"}
+                        </td>
+                      </tr>
                     ))}
-                  </div>
-                </div>
-                <div className="rounded-xl border border-neutral-200 bg-surface p-5">
-                  <h3 className="text-sm font-semibold text-neutral-900 mb-3">Risk Profile</h3>
-                  <div className="flex items-center gap-3">
-                    <span className={cn("text-sm font-medium px-3 py-1 rounded-full", RISK_COLORS[investor.riskTolerance])}>{RISK_LABELS[investor.riskTolerance]}</span>
-                  </div>
-                </div>
-              </div>
+                  </tbody>
+                </table>
+              )}
             </div>
           )}
-          {activeTab === "investments" && (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-neutral-100 mb-4"><Wallet className="h-8 w-8 text-neutral-400" /></div>
-              <h3 className="text-sm font-semibold text-neutral-900">Investment History</h3>
-              <p className="text-sm text-neutral-500 mt-1">Investment details will be connected to funding data</p>
-            </div>
-          )}
-          {activeTab === "documents" && (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-neutral-100 mb-4"><ShieldCheck className="h-8 w-8 text-neutral-400" /></div>
-              <h3 className="text-sm font-semibold text-neutral-900">KYC Documents</h3>
-              <p className="text-sm text-neutral-500 mt-1">Document management will be built in Phase 4</p>
+
+          {activeTab === "banks" && (
+            <div className="rounded-xl border border-neutral-200 bg-surface overflow-hidden">
+              {investor.bankAccounts.length === 0 ? (
+                <p className="text-sm text-neutral-400 p-8 text-center">
+                  No bank accounts on file.
+                </p>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-neutral-50/80">
+                      <th className="text-left py-3 px-4 text-xs font-medium text-neutral-500 uppercase tracking-wider">
+                        Bank
+                      </th>
+                      <th className="text-left py-3 px-4 text-xs font-medium text-neutral-500 uppercase tracking-wider">
+                        Account
+                      </th>
+                      <th className="text-left py-3 px-4 text-xs font-medium text-neutral-500 uppercase tracking-wider">
+                        Name
+                      </th>
+                      <th className="hidden md:table-cell text-left py-3 px-4 text-xs font-medium text-neutral-500 uppercase tracking-wider">
+                        Default
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-100">
+                    {investor.bankAccounts.map((b) => (
+                      <tr key={b.id}>
+                        <td className="py-3 px-4 text-neutral-800">
+                          {b.bankName}
+                        </td>
+                        <td className="py-3 px-4 tabular-nums text-neutral-700">
+                          {b.accountNumber}
+                        </td>
+                        <td className="py-3 px-4 text-neutral-600">
+                          {b.accountName}
+                        </td>
+                        <td className="hidden md:table-cell py-3 px-4 text-neutral-500 text-xs">
+                          {b.isDefault ? "Yes" : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
           )}
         </motion.div>

@@ -55,6 +55,15 @@ export function useAdminWithdrawals(params: WithdrawalListParams = {}) {
   });
 }
 
+export function useAdminWithdrawal(id: string) {
+  const token = useAuthStore((s) => s.accessToken);
+  return useQuery({
+    queryKey: qk.admin.withdrawals.detail(id),
+    queryFn: () => adminApi.getWithdrawal(id),
+    enabled: !!token && !!id,
+  });
+}
+
 // ── KYC review mutations — invalidate the related lists so tables refresh ──
 
 export function useApproveUserKyc() {

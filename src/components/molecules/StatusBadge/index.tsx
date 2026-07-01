@@ -20,6 +20,14 @@ const STATUS_CONFIG: Record<string, { label: string; dotColor: string; bgColor: 
   IN_REVIEW: { label: "In Review", dotColor: "bg-flag-500", bgColor: "bg-flag-50", textColor: "text-flag-600" },
   ACCREDITED: { label: "Accredited", dotColor: "bg-success-500", bgColor: "bg-success-50", textColor: "text-success-600" },
   EXPIRED: { label: "Expired", dotColor: "bg-neutral-400", bgColor: "bg-neutral-100", textColor: "text-neutral-600" },
+  // KYC statuses (real API)
+  UNVERIFIED: { label: "Unverified", dotColor: "bg-neutral-400", bgColor: "bg-neutral-100", textColor: "text-neutral-600" },
+  VERIFIED: { label: "Verified", dotColor: "bg-success-500", bgColor: "bg-success-50", textColor: "text-success-600" },
+  // Withdrawal statuses
+  PENDING_OTP: { label: "Pending OTP", dotColor: "bg-warning-500", bgColor: "bg-warning-50", textColor: "text-warning-600" },
+  PROCESSING: { label: "Processing", dotColor: "bg-flag-500", bgColor: "bg-flag-50", textColor: "text-flag-600" },
+  FAILED: { label: "Failed", dotColor: "bg-danger-500", bgColor: "bg-danger-50", textColor: "text-danger-600" },
+  CANCELLED: { label: "Cancelled", dotColor: "bg-neutral-400", bgColor: "bg-neutral-100", textColor: "text-neutral-600" },
   // Funding stages
   APPLICATION: { label: "Application", dotColor: "bg-neutral-400", bgColor: "bg-neutral-100", textColor: "text-neutral-600" },
   DOCUMENT_REVIEW: { label: "Document Review", dotColor: "bg-flag-500", bgColor: "bg-flag-50", textColor: "text-flag-600" },

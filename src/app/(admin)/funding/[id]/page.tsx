@@ -1,238 +1,263 @@
 "use client";
 
-import { use, useState } from "react";
-import { motion } from "motion/react";
+import { use, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Wallet, Building2, Calendar, Clock, User, CheckCircle2, XCircle, DollarSign, Brain, FileText, BarChart3 } from "lucide-react";
-import { useMockStore } from "@/lib/mock/store";
-import { StatusBadge } from "@/components/molecules/StatusBadge";
-import { RoleGuardedAction } from "@/components/organisms/RoleGuardedAction";
-import { formatNaira, formatNairaCompact, formatDate, formatRelativeTime, formatPercent } from "@/lib/format";
+import {
+  ArrowLeft,
+  Building2,
+  CheckCircle2,
+  XCircle,
+  Brain,
+  RefreshCw,
+} from "lucide-react";
+import {
+  useAdminFundingRequests,
+  useApproveFundingRequest,
+  useRejectFundingRequest,
+  useRerunFundingAi,
+} from "@/lib/hooks/api/useAdmin";
+import { formatNaira, formatDate } from "@/lib/format";
 import { useToast } from "@/hooks/useToast";
-import { approveFunding, rejectFunding } from "@/lib/mock/handlers/funding";
 import { cn } from "@/lib/utils";
 
-const STAGE_ORDER = ["APPLICATION", "DOCUMENT_REVIEW", "AI_ANALYSIS", "COMMITTEE_REVIEW", "APPROVED", "DISBURSEMENT", "ACTIVE", "COMPLETED"];
+const STATUS_STYLE: Record<string, string> = {
+  PENDING: "bg-warning-50 text-warning-600",
+  APPROVED: "bg-success-50 text-success-600",
+  REJECTED: "bg-danger-50 text-danger-600",
+};
+const AI_FALLBACK = { cls: "bg-neutral-100 text-neutral-500", label: "Queued" };
+const AI_STYLE: Record<string, { cls: string; label: string }> = {
+  PENDING: AI_FALLBACK,
+  RUNNING: { cls: "bg-brand-50 text-brand-600", label: "Analysing…" },
+  COMPLETE: { cls: "bg-success-50 text-success-600", label: "Ready" },
+  FAILED: { cls: "bg-danger-50 text-danger-600", label: "Failed" },
+};
 
-export default function FundingDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default function FundingDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const { id } = use(params);
-  const fundingRequests = useMockStore((s) => s.fundingRequests);
-  const fr = fundingRequests.find((f) => f.id === id);
-  const [isActioning, setIsActioning] = useState(false);
-  const toast = useToast();
+  // Funding requests are low-volume; pull the list (which carries aiAnalysis
+  // + polls while AI runs) and find this one. Avoids a separate detail endpoint.
+  const { data, isLoading } = useAdminFundingRequests({ perPage: 100 });
+  const fr = useMemo(() => data?.data.find((r) => r.id === id), [data, id]);
 
+  const approve = useApproveFundingRequest();
+  const reject = useRejectFundingRequest();
+  const rerun = useRerunFundingAi();
+  const toast = useToast();
+  const [notes, setNotes] = useState("");
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-24 text-sm text-neutral-500">
+        Loading…
+      </div>
+    );
+  }
   if (!fr) {
     return (
-      <div className="flex flex-col items-center justify-center py-24">
-        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-neutral-100 mb-4"><Wallet className="h-8 w-8 text-neutral-400" /></div>
-        <h2 className="text-lg font-semibold text-neutral-900">Funding request not found</h2>
-        <Link href="/funding" className="mt-4 text-sm text-brand-500 font-medium">← Back to funding</Link>
+      <div className="flex flex-col items-center justify-center py-24 gap-3">
+        <h2 className="text-lg font-semibold text-neutral-900">
+          Request not found
+        </h2>
+        <Link
+          href="/funding"
+          className="text-sm text-brand-500 hover:text-brand-600 font-medium"
+        >
+          ← Back to funding
+        </Link>
       </div>
     );
   }
 
-  const handleApprove = async () => {
-    setIsActioning(true);
-    const result = await approveFunding(fr.id);
-    setIsActioning(false);
-    if (result.ok) toast.success("Funding approved", `${fr.title} has been approved`);
-    else toast.error("Failed", result.error);
-  };
+  const canReview = fr.status === "PENDING";
+  const ai = AI_STYLE[fr.aiStatus] ?? AI_FALLBACK;
+  const busy = approve.isPending || reject.isPending;
 
-  const handleReject = async () => {
-    setIsActioning(true);
-    const result = await rejectFunding(fr.id, "Does not meet criteria");
-    setIsActioning(false);
-    if (result.ok) toast.success("Funding rejected", `${fr.title} has been rejected`);
-    else toast.error("Failed", result.error);
+  const onApprove = async () => {
+    try {
+      const res = await approve.mutateAsync({
+        id: fr.id,
+        notes: notes || undefined,
+      });
+      toast.success(
+        "Approved",
+        `Draft listing created (${res.listing.id.slice(-6)}). Publish it from Marketplace.`,
+      );
+    } catch (e) {
+      toast.error(
+        "Failed",
+        (e as { message?: string })?.message ?? "Could not approve",
+      );
+    }
   };
-
-  const currentStageIdx = STAGE_ORDER.indexOf(fr.stage);
-  const disbursementPct = fr.amountApproved ? (fr.amountDisbursed / fr.amountApproved) * 100 : 0;
+  const onReject = async () => {
+    try {
+      await reject.mutateAsync({ id: fr.id, notes: notes || undefined });
+      toast.success("Rejected", "The company will see your note.");
+    } catch (e) {
+      toast.error(
+        "Failed",
+        (e as { message?: string })?.message ?? "Could not reject",
+      );
+    }
+  };
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2 text-sm">
-        <Link href="/funding" className="flex items-center gap-1 text-neutral-500 hover:text-neutral-700 transition-colors"><ArrowLeft className="h-4 w-4" />Funding</Link>
-        <span className="text-neutral-300">/</span>
-        <span className="text-neutral-900 font-medium truncate">{fr.title}</span>
+      <Link
+        href="/funding"
+        className="inline-flex items-center gap-2 text-sm text-neutral-500 hover:text-neutral-900 transition-colors"
+      >
+        <ArrowLeft className="h-4 w-4" /> Back to funding
+      </Link>
+
+      <div className="rounded-2xl border border-neutral-200 bg-surface p-6">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-xl font-semibold text-neutral-900 tracking-tight">
+              {fr.title}
+            </h1>
+            <div className="flex items-center gap-2 text-sm text-neutral-500 mt-1">
+              <Building2 className="h-4 w-4" /> {fr.company.name}
+              <span className="text-neutral-300">·</span>
+              {formatDate(fr.createdAt)}
+            </div>
+          </div>
+          <span
+            className={cn(
+              "text-[11px] font-medium px-3 py-1 rounded-full",
+              STATUS_STYLE[fr.status],
+            )}
+          >
+            {fr.status}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-3 gap-4 mt-5">
+          <div>
+            <p className="text-xs text-neutral-500">Target</p>
+            <p className="text-lg font-semibold text-neutral-900">
+              {formatNaira(Number(fr.targetAmount))}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-neutral-500">Min investment</p>
+            <p className="text-lg font-semibold text-neutral-900">
+              {formatNaira(Number(fr.minInvestment))}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-neutral-500">Unit price</p>
+            <p className="text-lg font-semibold text-neutral-900">
+              {formatNaira(Number(fr.unitPrice))}
+            </p>
+          </div>
+        </div>
+
+        {canReview && (
+          <div className="mt-6 space-y-3">
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Review notes (optional — shown to the company)…"
+              rows={2}
+              className="w-full rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-sm placeholder:text-neutral-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+            />
+            <div className="flex items-center gap-3">
+              <button
+                onClick={onApprove}
+                disabled={busy}
+                className="inline-flex items-center gap-1.5 h-10 px-4 rounded-lg bg-success-500 text-white text-sm font-medium hover:bg-success-600 disabled:opacity-50 transition-colors"
+              >
+                <CheckCircle2 className="h-4 w-4" /> Approve → create listing
+              </button>
+              <button
+                onClick={onReject}
+                disabled={busy}
+                className="inline-flex items-center gap-1.5 h-10 px-4 rounded-lg bg-danger-500 text-white text-sm font-medium hover:bg-danger-600 disabled:opacity-50 transition-colors"
+              >
+                <XCircle className="h-4 w-4" /> Reject
+              </button>
+            </div>
+          </div>
+        )}
+
+        {fr.status === "APPROVED" && fr.linkedListingId && (
+          <Link
+            href={`/marketplace/${fr.linkedListingId}`}
+            className="inline-flex items-center gap-1.5 mt-5 text-sm text-brand-500 hover:text-brand-600 font-medium"
+          >
+            View created listing →
+          </Link>
+        )}
+        {fr.reviewNotes && (
+          <p className="mt-4 text-sm text-neutral-600">
+            <span className="font-medium">Review note:</span> {fr.reviewNotes}
+          </p>
+        )}
       </div>
 
-      {/* Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-xl font-semibold text-neutral-900">{fr.title}</h1>
-            <StatusBadge status={fr.stage} size="md" />
-          </div>
-          <p className="text-sm text-neutral-500 mt-1">{fr.description}</p>
-          <div className="flex items-center gap-4 mt-2 text-xs text-neutral-400">
-            <span className="flex items-center gap-1"><Building2 className="h-3 w-3" />{fr.companyName}</span>
-            <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />Submitted {formatDate(fr.submittedAt)}</span>
-            {fr.assignedOfficer && <span className="flex items-center gap-1"><User className="h-3 w-3" />{fr.assignedOfficer}</span>}
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {["COMMITTEE_REVIEW", "AI_ANALYSIS", "DOCUMENT_REVIEW"].includes(fr.stage) && (
-            <>
-              <RoleGuardedAction action="funding:approve">
-                <button onClick={handleApprove} disabled={isActioning}
-                  className="flex items-center gap-2 h-9 px-4 rounded-lg bg-success-500 text-white text-sm font-medium hover:bg-success-600 transition-colors disabled:opacity-50 active:scale-[0.97]">
-                  <CheckCircle2 className="h-4 w-4" />Approve
-                </button>
-              </RoleGuardedAction>
-              <RoleGuardedAction action="funding:approve">
-                <button onClick={handleReject} disabled={isActioning}
-                  className="flex items-center gap-2 h-9 px-4 rounded-lg bg-danger-50 text-danger-600 text-sm font-medium hover:bg-danger-100 transition-colors disabled:opacity-50 active:scale-[0.97]">
-                  <XCircle className="h-4 w-4" />Reject
-                </button>
-              </RoleGuardedAction>
-            </>
-          )}
-        </div>
+      <div className="rounded-xl border border-neutral-200 bg-surface p-5">
+        <h2 className="text-sm font-semibold text-neutral-900 mb-2">
+          Description
+        </h2>
+        <p className="text-sm text-neutral-600 leading-6 whitespace-pre-wrap">
+          {fr.description}
+        </p>
       </div>
 
-      {/* Pipeline Progress */}
-      <motion.div className="rounded-xl border border-neutral-200 bg-surface p-5" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-        <h3 className="text-sm font-semibold text-neutral-900 mb-4">Pipeline Progress</h3>
-        <div className="flex items-center gap-0">
-          {STAGE_ORDER.map((stage, i) => {
-            const isComplete = i < currentStageIdx;
-            const isCurrent = i === currentStageIdx;
-            return (
-              <div key={stage} className="flex items-center flex-1">
-                <div className="flex flex-col items-center gap-1.5 flex-1">
-                  <div className={cn("h-4 w-4 rounded-full border-2 transition-all",
-                    isComplete ? "bg-success-500 border-success-500" :
-                    isCurrent ? "bg-brand-500 border-brand-500 ring-4 ring-brand-500/20" :
-                    "bg-white border-neutral-300")} />
-                  <span className={cn("text-[9px] text-center leading-tight",
-                    isCurrent ? "text-brand-600 font-medium" : isComplete ? "text-success-600" : "text-neutral-400"
-                  )}>{stage.replace(/_/g, " ").slice(0, 10)}</span>
-                </div>
-                {i < STAGE_ORDER.length - 1 && (
-                  <div className={cn("h-0.5 flex-1 -mt-4", isComplete ? "bg-success-500" : "bg-neutral-200")} />
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </motion.div>
-
-      {/* Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          {/* Financial Summary */}
-          <motion.div className="grid grid-cols-2 md:grid-cols-4 gap-4" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
-            {[
-              { label: "Requested", value: formatNaira(fr.amountRequested), color: "text-neutral-900" },
-              { label: "Approved", value: fr.amountApproved ? formatNaira(fr.amountApproved) : "Pending", color: fr.amountApproved ? "text-success-600" : "text-neutral-400" },
-              { label: "Disbursed", value: fr.amountDisbursed > 0 ? formatNaira(fr.amountDisbursed) : "—", color: fr.amountDisbursed > 0 ? "text-brand-600" : "text-neutral-400" },
-              { label: "Risk Score", value: fr.riskScore !== null ? `${fr.riskScore}%` : "N/A", color: fr.riskScore !== null && fr.riskScore <= 25 ? "text-success-600" : fr.riskScore !== null && fr.riskScore <= 50 ? "text-warning-600" : "text-neutral-900" },
-            ].map((m) => (
-              <div key={m.label} className="rounded-xl border border-neutral-200 bg-surface p-4">
-                <p className="text-xs text-neutral-500">{m.label}</p>
-                <p className={cn("text-lg font-semibold mt-1", m.color)}>{m.value}</p>
-              </div>
-            ))}
-          </motion.div>
-
-          {/* Use of Funds */}
-          <motion.div className="rounded-xl border border-neutral-200 bg-surface p-5" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-            <h3 className="text-sm font-semibold text-neutral-900 mb-4">Use of Funds</h3>
-            <div className="space-y-3">
-              {fr.useOfFunds.map((category) => (
-                <div key={category.name} className="space-y-1.5">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-neutral-700">{category.name}</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-neutral-500 text-xs">{category.percentage}%</span>
-                      <span className="font-medium text-neutral-900">{formatNairaCompact(category.amount)}</span>
-                    </div>
-                  </div>
-                  <div className="h-2 bg-neutral-100 rounded-full overflow-hidden">
-                    <motion.div
-                      className="h-full bg-brand-500 rounded-full"
-                      initial={{ width: 0 }}
-                      animate={{ width: `${category.percentage}%` }}
-                      transition={{ duration: 0.6, delay: 0.3, ease: [0.25, 1, 0.5, 1] }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="mt-4 pt-4 border-t border-neutral-100 flex items-center justify-between text-sm">
-              <span className="font-medium text-neutral-900">Total</span>
-              <span className="font-semibold text-neutral-900">{formatNaira(fr.amountRequested)}</span>
-            </div>
-          </motion.div>
-
-          {/* Disbursement Progress */}
-          {fr.amountApproved && fr.amountApproved > 0 && (
-            <motion.div className="rounded-xl border border-neutral-200 bg-surface p-5" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
-              <h3 className="text-sm font-semibold text-neutral-900 mb-3">Disbursement Progress</h3>
-              <div className="flex items-center justify-between text-sm mb-2">
-                <span className="text-neutral-500">{formatNairaCompact(fr.amountDisbursed)} of {formatNairaCompact(fr.amountApproved)}</span>
-                <span className="font-medium text-brand-600">{formatPercent(disbursementPct, 0)}</span>
-              </div>
-              <div className="h-3 bg-neutral-100 rounded-full overflow-hidden">
-                <motion.div className="h-full bg-gradient-to-r from-brand-500 to-brand-accent rounded-full"
-                  initial={{ width: 0 }} animate={{ width: `${disbursementPct}%` }}
-                  transition={{ duration: 0.8, delay: 0.3, ease: [0.25, 1, 0.5, 1] }} />
-              </div>
-            </motion.div>
-          )}
+      <div className="rounded-xl border border-neutral-200 bg-surface p-5">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Brain className="h-4 w-4 text-brand-500" />
+            <h2 className="text-sm font-semibold text-neutral-900">
+              AI Risk Analysis
+            </h2>
+            <span
+              className={cn(
+                "text-[11px] font-medium px-2 py-0.5 rounded-full",
+                ai.cls,
+              )}
+            >
+              {ai.label}
+            </span>
+          </div>
+          <button
+            onClick={() =>
+              rerun.mutate(fr.id, {
+                onSuccess: () => toast.success("Re-run queued"),
+                onError: () => toast.error("Failed to queue re-run"),
+              })
+            }
+            disabled={rerun.isPending || fr.aiStatus === "RUNNING"}
+            className="inline-flex items-center gap-1.5 text-xs text-neutral-500 hover:text-neutral-800 disabled:opacity-40"
+          >
+            <RefreshCw
+              className={cn("h-3.5 w-3.5", rerun.isPending && "animate-spin")}
+            />
+            Re-run
+          </button>
         </div>
 
-        {/* Sidebar */}
-        <div className="space-y-6">
-          <motion.div className="rounded-xl border border-neutral-200 bg-surface p-5" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
-            <h3 className="text-sm font-semibold text-neutral-900 mb-4">Details</h3>
-            <div className="space-y-3">
-              {[
-                { label: "Company", value: fr.companyName },
-                { label: "Tenure", value: fr.tenure ? `${fr.tenure} months` : "—" },
-                { label: "Interest Rate", value: fr.interestRate ? `${fr.interestRate}%` : "—" },
-                { label: "AI Score", value: fr.aiScore !== null ? `${fr.aiScore}%` : "Pending" },
-                { label: "Submitted", value: formatDate(fr.submittedAt) },
-                { label: "Reviewed", value: fr.reviewedAt ? formatDate(fr.reviewedAt) : "—" },
-                { label: "Approved", value: fr.approvedAt ? formatDate(fr.approvedAt) : "—" },
-                { label: "Disbursed", value: fr.disbursedAt ? formatDate(fr.disbursedAt) : "—" },
-              ].map((d) => (
-                <div key={d.label} className="flex items-center justify-between text-sm">
-                  <span className="text-neutral-500">{d.label}</span>
-                  <span className="font-medium text-neutral-900">{d.value}</span>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-
-          {/* AI Score Ring */}
-          {fr.aiScore !== null && (
-            <motion.div className="rounded-xl border border-neutral-200 bg-surface p-5" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-              <h3 className="text-sm font-semibold text-neutral-900 mb-4">AI Assessment</h3>
-              <div className="flex items-center gap-4">
-                <div className="relative h-20 w-20">
-                  <svg className="h-20 w-20 -rotate-90" viewBox="0 0 80 80">
-                    <circle cx="40" cy="40" r="36" fill="none" stroke="#F3F4F6" strokeWidth="6" />
-                    <circle cx="40" cy="40" r="36" fill="none"
-                      stroke={fr.aiScore >= 80 ? "#22C55E" : fr.aiScore >= 60 ? "#F59E0B" : "#EF4444"}
-                      strokeWidth="6" strokeLinecap="round" strokeDasharray={`${(fr.aiScore / 100) * 226} 226`} />
-                  </svg>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-lg font-bold text-neutral-900">{fr.aiScore}</span>
-                  </div>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-neutral-900">
-                    {fr.aiScore >= 80 ? "Strong" : fr.aiScore >= 60 ? "Moderate" : "Weak"}
-                  </p>
-                  <p className="text-xs text-neutral-500 mt-0.5">Based on financial analysis and risk assessment</p>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </div>
+        {fr.aiStatus === "COMPLETE" && fr.aiAnalysis ? (
+          <p className="text-sm text-neutral-700 leading-6 whitespace-pre-wrap">
+            {fr.aiAnalysis}
+          </p>
+        ) : fr.aiStatus === "FAILED" ? (
+          <p className="text-sm text-danger-600">
+            {fr.aiError ?? "Analysis failed. Try re-running."}
+          </p>
+        ) : (
+          <p className="text-sm text-neutral-500">
+            {fr.aiStatus === "RUNNING"
+              ? "Analysis in progress — this refreshes automatically."
+              : "Queued for analysis."}
+          </p>
+        )}
       </div>
     </div>
   );

@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   adminApi,
   type CompanyListParams,
+  type FundingRequestListParams,
+  type ListingListParams,
   type UserListParams,
   type WithdrawalListParams,
 } from "@/lib/api/services/admin";
@@ -117,3 +119,103 @@ export function useRejectCompanyKyc() {
     },
   });
 }
+
+// ── Funding requests ───────────────────────────────────────────────────
+
+export function useAdminFundingRequests(params: FundingRequestListParams = {}) {
+  const token = useAuthStore((s) => s.accessToken);
+  return useQuery({
+    queryKey: qk.admin.fundingRequests.list(params),
+    queryFn: () => adminApi.listFundingRequests(params),
+    enabled: !!token,
+    // Poll while any AI analysis is in flight so the review queue updates
+    // without a manual refresh.
+    refetchInterval: (query) => {
+      const rows = query.state.data?.data ?? [];
+      const anyRunning = rows.some(
+        (r) => r.aiStatus === "PENDING" || r.aiStatus === "RUNNING",
+      );
+      return anyRunning ? 10_000 : false;
+    },
+  });
+}
+
+export function useApproveFundingRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, notes }: { id: string; notes?: string }) =>
+      adminApi.approveFundingRequest(id, notes),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: qk.admin.fundingRequests.all });
+      void qc.invalidateQueries({ queryKey: qk.admin.listings.all });
+    },
+  });
+}
+
+export function useRejectFundingRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, notes }: { id: string; notes?: string }) =>
+      adminApi.rejectFundingRequest(id, notes),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: qk.admin.fundingRequests.all });
+    },
+  });
+}
+
+export function useRerunFundingAi() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => adminApi.rerunFundingAi(id),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: qk.admin.fundingRequests.all });
+    },
+  });
+}
+
+// ── Listings ───────────────────────────────────────────────────────────
+
+export function useAdminListings(params: ListingListParams = {}) {
+  const token = useAuthStore((s) => s.accessToken);
+  return useQuery({
+    queryKey: qk.admin.listings.list(params),
+    queryFn: () => adminApi.listListings(params),
+    enabled: !!token,
+  });
+}
+
+export function useAdminListing(id: string) {
+  const token = useAuthStore((s) => s.accessToken);
+  return useQuery({
+    queryKey: qk.admin.listings.detail(id),
+    queryFn: () => adminApi.getListing(id),
+    enabled: !!token && !!id,
+  });
+}
+
+export function useAdminListingInvestments(id: string) {
+  const token = useAuthStore((s) => s.accessToken);
+  return useQuery({
+    queryKey: qk.admin.listings.investments(id),
+    queryFn: () => adminApi.listListingInvestments(id, { perPage: 100 }),
+    enabled: !!token && !!id,
+  });
+}
+
+function useListingMutation(
+  fn: (id: string) => Promise<unknown>,
+) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => fn(id),
+    onSuccess: (_r, id) => {
+      void qc.invalidateQueries({ queryKey: qk.admin.listings.all });
+      void qc.invalidateQueries({ queryKey: qk.admin.listings.detail(id) });
+    },
+  });
+}
+
+export const usePublishListing = () =>
+  useListingMutation(adminApi.publishListing);
+export const useCloseListing = () => useListingMutation(adminApi.closeListing);
+export const useCancelListing = () => useListingMutation(adminApi.cancelListing);

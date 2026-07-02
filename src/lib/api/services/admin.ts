@@ -109,4 +109,146 @@ export const adminApi = {
     );
     return data.data;
   },
+
+  // ── Funding requests ──────────────────────────────────────────────────
+  async listFundingRequests(params: FundingRequestListParams = {}) {
+    const { data } = await apiClient.get<
+      PaginatedResponse<AdminFundingRequest>
+    >("/admin/funding-requests", { params });
+    return data;
+  },
+  async approveFundingRequest(id: string, reviewNotes?: string) {
+    const { data } = await apiClient.post<
+      ApiResponse<{ request: AdminFundingRequest; listing: AdminListing }>
+    >(`/admin/funding-requests/${id}/approve`, { reviewNotes });
+    return data.data;
+  },
+  async rejectFundingRequest(id: string, reviewNotes?: string) {
+    const { data } = await apiClient.post<ApiResponse<AdminFundingRequest>>(
+      `/admin/funding-requests/${id}/reject`,
+      { reviewNotes },
+    );
+    return data.data;
+  },
+  async rerunFundingAi(id: string) {
+    const { data } = await apiClient.post<
+      ApiResponse<{ queued: boolean; id: string }>
+    >(`/admin/funding-requests/${id}/rerun-ai`, {});
+    return data.data;
+  },
+
+  // ── Listings ──────────────────────────────────────────────────────────
+  async listListings(params: ListingListParams = {}) {
+    const { data } = await apiClient.get<PaginatedResponse<AdminListing>>(
+      "/admin/listings",
+      { params },
+    );
+    return data;
+  },
+  async getListing(id: string): Promise<AdminListing> {
+    const { data } = await apiClient.get<ApiResponse<AdminListing>>(
+      `/admin/listings/${id}`,
+    );
+    return data.data;
+  },
+  async listListingInvestments(id: string, params: { page?: number; perPage?: number } = {}) {
+    const { data } = await apiClient.get<
+      PaginatedResponse<AdminInvestment>
+    >(`/admin/listings/${id}/investments`, { params });
+    return data;
+  },
+  async publishListing(id: string) {
+    const { data } = await apiClient.post<ApiResponse<AdminListing>>(
+      `/admin/listings/${id}/publish`,
+      {},
+    );
+    return data.data;
+  },
+  async closeListing(id: string) {
+    const { data } = await apiClient.post<ApiResponse<AdminListing>>(
+      `/admin/listings/${id}/close`,
+      {},
+    );
+    return data.data;
+  },
+  async cancelListing(id: string) {
+    const { data } = await apiClient.delete<ApiResponse<AdminListing>>(
+      `/admin/listings/${id}`,
+    );
+    return data.data;
+  },
 };
+
+// ── Funding-request + listing types ──────────────────────────────────────
+
+export type FundingRequestStatus = "PENDING" | "APPROVED" | "REJECTED";
+export type AiAnalysisStatus = "PENDING" | "RUNNING" | "COMPLETE" | "FAILED";
+
+export interface FundingRequestListParams {
+  page?: number;
+  perPage?: number;
+  status?: FundingRequestStatus;
+}
+
+export interface AdminFundingRequest {
+  id: string;
+  title: string;
+  description: string;
+  targetAmount: string;
+  minInvestment: string;
+  unitPrice: string;
+  status: FundingRequestStatus;
+  reviewNotes: string | null;
+  reviewedAt: string | null;
+  linkedListingId: string | null;
+  aiStatus: AiAnalysisStatus;
+  aiReportId: string | null;
+  aiAnalysis: string | null;
+  aiError: string | null;
+  createdAt: string;
+  company: { id: string; name: string; kycStatus: KycStatus };
+}
+
+export type ListingStatus = "DRAFT" | "PUBLISHED" | "CLOSED" | "CANCELLED";
+
+export interface ListingListParams {
+  page?: number;
+  perPage?: number;
+  status?: ListingStatus;
+  companyId?: string;
+  q?: string;
+}
+
+export interface AdminListing {
+  id: string;
+  title: string;
+  description: string;
+  status: ListingStatus;
+  targetAmount: string;
+  minInvestment: string;
+  unitPrice: string;
+  raisedAmount: string;
+  coverImageKey: string | null;
+  openAt: string | null;
+  closeAt: string | null;
+  publishedAt: string | null;
+  closedAt: string | null;
+  createdAt: string;
+  company: { id: string; name: string; kycStatus: KycStatus };
+  _count?: { investments: number };
+}
+
+export type InvestmentStatus =
+  | "COMMITTED"
+  | "SETTLED"
+  | "REFUNDED"
+  | "CANCELLED";
+
+export interface AdminInvestment {
+  id: string;
+  status: InvestmentStatus;
+  amount: string;
+  unitsAllotted: string;
+  committedAt: string;
+  user: { id: string; name: string; email: string; kycStatus: KycStatus };
+}

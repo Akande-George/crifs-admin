@@ -219,3 +219,84 @@ export const usePublishListing = () =>
   useListingMutation(adminApi.publishListing);
 export const useCloseListing = () => useListingMutation(adminApi.closeListing);
 export const useCancelListing = () => useListingMutation(adminApi.cancelListing);
+
+// ── P5: audit / analytics / documents / broadcasts / voting ────────────────
+
+export function useAudit(params: { page?: number; perPage?: number } = {}) {
+  const token = useAuthStore((s) => s.accessToken);
+  return useQuery({
+    queryKey: ["admin", "audit", params],
+    queryFn: () => adminApi.listAudit(params),
+    enabled: !!token,
+  });
+}
+
+export function useAnalytics() {
+  const token = useAuthStore((s) => s.accessToken);
+  return useQuery({
+    queryKey: ["admin", "analytics"],
+    queryFn: () => adminApi.analytics(),
+    enabled: !!token,
+  });
+}
+
+export function useAdminDocuments(
+  params: { page?: number; perPage?: number; kind?: string } = {},
+) {
+  const token = useAuthStore((s) => s.accessToken);
+  return useQuery({
+    queryKey: ["admin", "documents", params],
+    queryFn: () => adminApi.listDocuments(params),
+    enabled: !!token,
+  });
+}
+
+export function useBroadcasts(params: { page?: number; perPage?: number } = {}) {
+  const token = useAuthStore((s) => s.accessToken);
+  return useQuery({
+    queryKey: ["admin", "broadcasts", params],
+    queryFn: () => adminApi.listBroadcasts(params),
+    enabled: !!token,
+  });
+}
+
+export function useSendBroadcast() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: Parameters<typeof adminApi.sendBroadcast>[0]) =>
+      adminApi.sendBroadcast(payload),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["admin", "broadcasts"] });
+    },
+  });
+}
+
+export function useAdminVoting(params: { page?: number; perPage?: number } = {}) {
+  const token = useAuthStore((s) => s.accessToken);
+  return useQuery({
+    queryKey: ["admin", "voting", params],
+    queryFn: () => adminApi.listVoting(params),
+    enabled: !!token,
+  });
+}
+
+export function useCreateVotingRound() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: Parameters<typeof adminApi.createVotingRound>[0]) =>
+      adminApi.createVotingRound(payload),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["admin", "voting"] });
+    },
+  });
+}
+
+export function useCloseVotingRound() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => adminApi.closeVotingRound(id),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["admin", "voting"] });
+    },
+  });
+}

@@ -177,6 +177,74 @@ export const adminApi = {
     );
     return data.data;
   },
+
+  // ── audit / analytics / documents / broadcasts / voting ────────────────
+  async listAudit(params: { page?: number; perPage?: number } = {}) {
+    const { data } = await apiClient.get<PaginatedResponse<AuditLogRow>>(
+      "/admin/audit",
+      { params },
+    );
+    return data;
+  },
+  async analytics(): Promise<AnalyticsSummary> {
+    const { data } = await apiClient.get<ApiResponse<AnalyticsSummary>>(
+      "/admin/analytics",
+    );
+    return data.data;
+  },
+  async listDocuments(
+    params: { page?: number; perPage?: number; kind?: string } = {},
+  ) {
+    const { data } = await apiClient.get<PaginatedResponse<AdminDocumentRow>>(
+      "/admin/documents",
+      { params },
+    );
+    return data;
+  },
+  async listBroadcasts(params: { page?: number; perPage?: number } = {}) {
+    const { data } = await apiClient.get<PaginatedResponse<BroadcastRow>>(
+      "/admin/broadcasts",
+      { params },
+    );
+    return data;
+  },
+  async sendBroadcast(payload: {
+    title: string;
+    body: string;
+    role?: Role;
+  }): Promise<BroadcastRow> {
+    const { data } = await apiClient.post<ApiResponse<BroadcastRow>>(
+      "/admin/broadcasts",
+      payload,
+    );
+    return data.data;
+  },
+  async listVoting(params: { page?: number; perPage?: number } = {}) {
+    const { data } = await apiClient.get<PaginatedResponse<AdminVotingRow>>(
+      "/admin/voting",
+      { params },
+    );
+    return data;
+  },
+  async createVotingRound(payload: {
+    listingId: string;
+    title: string;
+    description: string;
+    closesAt?: string;
+  }): Promise<AdminVotingRow> {
+    const { data } = await apiClient.post<ApiResponse<AdminVotingRow>>(
+      "/admin/voting",
+      payload,
+    );
+    return data.data;
+  },
+  async closeVotingRound(id: string): Promise<AdminVotingRow> {
+    const { data } = await apiClient.post<ApiResponse<AdminVotingRow>>(
+      `/admin/voting/${id}/close`,
+      {},
+    );
+    return data.data;
+  },
 };
 
 // ── Funding-request + listing types ──────────────────────────────────────
@@ -236,6 +304,73 @@ export interface AdminListing {
   createdAt: string;
   company: { id: string; name: string; kycStatus: KycStatus };
   _count?: { investments: number };
+}
+
+// ── P5: audit / analytics / documents / broadcasts ───────────────────────
+
+export interface AuditLogRow {
+  id: string;
+  adminId: string;
+  adminEmail: string | null;
+  action: string;
+  method: string;
+  path: string;
+  statusCode: number;
+  metadata: unknown;
+  createdAt: string;
+}
+
+export interface AnalyticsSummary {
+  totals: {
+    investors: number;
+    companies: number;
+    verifiedCompanies: number;
+    publishedListings: number;
+    closedListings: number;
+    pendingWithdrawals: number;
+  };
+  money: {
+    committedAmount: string;
+    committedCount: number;
+    settledAmount: string;
+    settledCount: number;
+    completedWithdrawalsAmount: string;
+    completedWithdrawalsCount: number;
+  };
+  listingsByStatus: { status: string; count: number }[];
+  investmentsByStatus: { status: string; count: number; amount: string }[];
+}
+
+export interface AdminDocumentRow {
+  id: string;
+  kind: string;
+  filename: string;
+  size: number;
+  mimeType: string;
+  key: string;
+  createdAt: string;
+  company: { id: string; name: string };
+}
+
+export interface BroadcastRow {
+  id: string;
+  title: string;
+  body: string;
+  role: Role | null;
+  recipientCount: number;
+  createdAt: string;
+}
+
+export interface AdminVotingRow {
+  id: string;
+  title: string;
+  description: string;
+  status: "OPEN" | "CLOSED";
+  closesAt: string | null;
+  createdAt: string;
+  listing: { id: string; title: string };
+  _count?: { votes: number };
+  tally?: { YES: number; NO: number; ABSTAIN: number; total: number };
 }
 
 export type InvestmentStatus =

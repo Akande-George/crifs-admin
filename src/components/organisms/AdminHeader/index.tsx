@@ -1,6 +1,7 @@
 "use client";
 
 import { Bell, Search, RotateCcw, Menu } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -17,13 +18,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { useMockAdmin } from "@/hooks/useMockAdmin";
 import { useMockStore } from "@/lib/mock/store";
 import type { Role } from "@/lib/zod/admin";
+import { useAuthStore } from "@/lib/auth/store";
+import { useLogout } from "@/lib/hooks/api/useAuth";
 import { useToast } from "@/hooks/useToast";
-import { cn } from "@/lib/utils";
 
+// Dev-only role switcher labels (mock permission system).
 const ROLE_LABELS: Record<Role, string> = {
   SUPER_ADMIN: "Super Admin",
   COMPLIANCE_OFFICER: "Compliance",
@@ -32,13 +34,29 @@ const ROLE_LABELS: Record<Role, string> = {
   FINANCE_OFFICER: "Finance",
 };
 
-const ROLE_COLORS: Record<Role, string> = {
-  SUPER_ADMIN: "bg-brand-500 text-white",
-  COMPLIANCE_OFFICER: "bg-success-500 text-white",
-  INVESTMENT_MANAGER: "bg-warning-500 text-white",
-  SUPPORT_AGENT: "bg-neutral-500 text-white",
-  FINANCE_OFFICER: "bg-flag-500 text-white",
-};
+/** Friendly label for the real auth role stored in the session. */
+function roleLabel(role?: string): string {
+  switch (role) {
+    case "ADMIN":
+      return "Administrator";
+    case "COMPANY":
+      return "Company";
+    case "INVESTOR":
+      return "Investor";
+    default:
+      return "Admin";
+  }
+}
+
+/** Two-letter initials from a full name ("Ada Obi" -> "AO", "Ada" -> "AD"). */
+function initialsFor(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const p0 = parts[0] ?? "";
+  if (!p0) return "AD";
+  const first = p0[0] ?? "";
+  const second = parts[1]?.[0] ?? p0[1] ?? "";
+  return (first + second).toUpperCase();
+}
 
 interface AdminHeaderProps {
   onMenuClick?: () => void;
@@ -46,14 +64,28 @@ interface AdminHeaderProps {
 }
 
 export function AdminHeader({ onMenuClick, isMobile }: AdminHeaderProps) {
-  const { admin, setAdminByRole } = useMockAdmin();
+  const router = useRouter();
+  // Real logged-in admin (from the auth session), not mock seed data.
+  const user = useAuthStore((s) => s.user);
+  const logout = useLogout();
+  // Mock store still powers the dev-only role switcher + reset button below.
+  const { admin: mockAdmin, setAdminByRole } = useMockAdmin();
   const resetStore = useMockStore((s) => s.resetStore);
   const unreadCount = useMockStore((s) =>
     s.notifications.filter((n) => !n.isRead).length
   );
   const toast = useToast();
 
-  const initials = `${admin.firstName[0]}${admin.lastName[0]}`;
+  const displayName = user?.name?.trim() || "Admin";
+  const displayEmail = user?.email ?? "";
+  const displayRole = roleLabel(user?.role);
+  const initials = initialsFor(displayName);
+
+  const handleLogout = () => {
+    logout.mutate(undefined, {
+      onSettled: () => router.replace("/login"),
+    });
+  };
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-surface/80 backdrop-blur-sm px-4 md:px-6">
@@ -91,7 +123,7 @@ export function AdminHeader({ onMenuClick, isMobile }: AdminHeaderProps) {
               Dev
             </span>
             <Select
-              value={admin.role}
+              value={mockAdmin.role}
               onValueChange={(role) => setAdminByRole(role as Role)}
             >
               <SelectTrigger className="h-7 w-[140px] text-xs border-none bg-transparent">
@@ -138,31 +170,40 @@ export function AdminHeader({ onMenuClick, isMobile }: AdminHeaderProps) {
             className="flex items-center gap-2 rounded-lg p-1 md:px-2 md:py-1.5 hover:bg-neutral-100 transition-colors cursor-pointer"
           >
             <Avatar className="h-8 w-8">
-              <AvatarFallback className={ROLE_COLORS[admin.role]}>
+              <AvatarFallback className="bg-brand-500 text-white">
                 {initials}
               </AvatarFallback>
             </Avatar>
             <div className="hidden lg:flex flex-col items-start">
               <span className="text-sm font-medium text-neutral-900 leading-tight">
-                {admin.firstName}
+                {displayName}
               </span>
               <span className="text-[10px] text-neutral-500 font-medium">
-                {ROLE_LABELS[admin.role]}
+                {displayRole}
               </span>
             </div>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuLabel>
               <div className="flex flex-col space-y-1">
-                <p className="text-sm font-medium">{admin.firstName} {admin.lastName}</p>
-                <p className="text-xs text-muted-foreground">{admin.email}</p>
+                <p className="text-sm font-medium">{displayName}</p>
+                {displayEmail && (
+                  <p className="text-xs text-muted-foreground">{displayEmail}</p>
+                )}
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>Profile</DropdownMenuItem>
-            <DropdownMenuItem>Preferences</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push("/settings")}>
+              Settings
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive">Log out</DropdownMenuItem>
+            <DropdownMenuItem
+              className="text-destructive"
+              onClick={handleLogout}
+              disabled={logout.isPending}
+            >
+              {logout.isPending ? "Logging out…" : "Log out"}
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

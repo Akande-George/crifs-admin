@@ -58,9 +58,11 @@ export const useAuthStore = create<AuthState>()(
     {
       name: "crifs-admin-auth",
       storage: createJSONStorage(() => localStorage),
+      // refreshToken is deliberately NOT persisted: no refresh flow consumes it
+      // (a 401 just clears the store), so persisting a long-lived credential to
+      // localStorage buys nothing and hands it to any XSS payload.
       partialize: (state) => ({
         accessToken: state.accessToken,
-        refreshToken: state.refreshToken,
         user: state.user,
       }),
       onRehydrateStorage: () => (state) => {

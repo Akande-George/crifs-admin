@@ -121,6 +121,13 @@ export interface CompanyDetail {
   rcNumber: string | null;
   tin: string | null;
   kycStatus: KycStatus;
+  // Underwriting limits — set by admins from the company's audited
+  // financials + valuation report. Decimals arrive as strings from the API.
+  fundingCap: string | null;
+  valuationAmount: string | null;
+  fundingCapNotes: string | null;
+  fundingCapSetById: string | null;
+  fundingCapSetAt: string | null;
   createdAt: string;
   updatedAt: string;
   owner?: {

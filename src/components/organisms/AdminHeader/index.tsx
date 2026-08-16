@@ -11,28 +11,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { useMockAdmin } from "@/hooks/useMockAdmin";
 import { useMockStore } from "@/lib/mock/store";
-import type { Role } from "@/lib/zod/admin";
 import { useAuthStore } from "@/lib/auth/store";
 import { useLogout } from "@/lib/hooks/api/useAuth";
 import { useToast } from "@/hooks/useToast";
-
-// Dev-only role switcher labels (mock permission system).
-const ROLE_LABELS: Record<Role, string> = {
-  SUPER_ADMIN: "Super Admin",
-  COMPLIANCE_OFFICER: "Compliance",
-  INVESTMENT_MANAGER: "Investment Mgr",
-  SUPPORT_AGENT: "Support",
-  FINANCE_OFFICER: "Finance",
-};
 
 /** Friendly label for the real auth role stored in the session. */
 function roleLabel(role?: string): string {
@@ -69,7 +51,6 @@ export function AdminHeader({ onMenuClick, isMobile }: AdminHeaderProps) {
   const user = useAuthStore((s) => s.user);
   const logout = useLogout();
   // Mock store still powers the dev-only role switcher + reset button below.
-  const { admin: mockAdmin, setAdminByRole } = useMockAdmin();
   const resetStore = useMockStore((s) => s.resetStore);
   const unreadCount = useMockStore((s) =>
     s.notifications.filter((n) => !n.isRead).length
@@ -116,30 +97,6 @@ export function AdminHeader({ onMenuClick, isMobile }: AdminHeaderProps) {
 
       {/* Right side */}
       <div className="flex items-center gap-2 md:gap-3">
-        {/* Dev-only: Role Switcher - Compact on mobile */}
-        {process.env.NODE_ENV !== "production" && (
-          <div className="hidden md:flex items-center gap-2 border border-dashed border-warning-500 rounded-lg px-2 py-1">
-            <span className="text-[10px] font-medium uppercase tracking-wider text-warning-600">
-              Dev
-            </span>
-            <Select
-              value={mockAdmin.role}
-              onValueChange={(role) => setAdminByRole(role as Role)}
-            >
-              <SelectTrigger className="h-7 w-[140px] text-xs border-none bg-transparent">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {(Object.keys(ROLE_LABELS) as Role[]).map((role) => (
-                  <SelectItem key={role} value={role} className="text-xs">
-                    {ROLE_LABELS[role]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-
         {/* Reset mock data */}
         {process.env.NODE_ENV !== "production" && (
           <button

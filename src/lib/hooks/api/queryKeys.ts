@@ -32,6 +32,9 @@ export const qk = {
       list: (p?: FundingRequestListParams) =>
         ["admin", "funding-requests", "list", p ?? {}] as const,
     },
+    fees: {
+      config: () => ["admin", "fees", "config"] as const,
+    },
     listings: {
       all: ["admin", "listings"] as const,
       list: (p?: ListingListParams) =>

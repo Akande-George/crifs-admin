@@ -1,29 +1,41 @@
 "use client";
 
-import { useMockAdmin } from "./useMockAdmin";
+import { useAuthStore } from "@/lib/auth/store";
 import { can, canAny, canAll } from "@/lib/mock/permissions/can";
 import type { Action } from "@/lib/mock/permissions/matrix";
+import type { Role } from "@/lib/zod/admin";
 
 /**
- * Check if the current mock admin can perform an action.
+ * Permission checks for the authenticated session.
+ *
+ * These are a UX affordance, not a security control. The admin dashboard is a
+ * static browser bundle, so anything decided here can be edited by whoever is
+ * holding the browser — `api.crifs.io` is the only thing that actually
+ * enforces authorization, via RolesGuard on every /admin/* controller.
+ *
+ * The role comes from the verified session rather than the mock store, which
+ * was writable from the client and shipped with a role switcher. Note the
+ * backend currently issues one admin role (ADMIN); the finer-grained roles in
+ * the matrix below are aspirational until it returns them, so an ADMIN maps to
+ * SUPER_ADMIN here. Do NOT introduce a UI that implies a COMPLIANCE_OFFICER
+ * cannot do something until the API actually refuses it.
  */
+function useSessionRole(): Role | null {
+  const user = useAuthStore((s) => s.user);
+  return user?.role === "ADMIN" ? "SUPER_ADMIN" : null;
+}
+
 export function usePermission(action: Action): boolean {
-  const { admin } = useMockAdmin();
-  return can(admin.role, action);
+  const role = useSessionRole();
+  return role !== null && can(role, action);
 }
 
-/**
- * Check if the current mock admin can perform ANY of the given actions.
- */
 export function usePermissionAny(actions: Action[]): boolean {
-  const { admin } = useMockAdmin();
-  return canAny(admin.role, actions);
+  const role = useSessionRole();
+  return role !== null && canAny(role, actions);
 }
 
-/**
- * Check if the current mock admin can perform ALL of the given actions.
- */
 export function usePermissionAll(actions: Action[]): boolean {
-  const { admin } = useMockAdmin();
-  return canAll(admin.role, actions);
+  const role = useSessionRole();
+  return role !== null && canAll(role, actions);
 }

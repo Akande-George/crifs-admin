@@ -4,8 +4,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   adminApi,
   type CompanyListParams,
+  type FeeKind,
   type FundingRequestListParams,
   type ListingListParams,
+  type SetFundingCapBody,
+  type UpdateFeeConfigBody,
   type UserListParams,
   type WithdrawalListParams,
 } from "@/lib/api/services/admin";
@@ -297,6 +300,49 @@ export function useCloseVotingRound() {
     mutationFn: (id: string) => adminApi.closeVotingRound(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["admin", "voting"] });
+    },
+  });
+}
+
+// ── Platform fees ──────────────────────────────────────────────────────
+
+export function useFeeConfigs() {
+  const token = useAuthStore((s) => s.accessToken);
+  return useQuery({
+    queryKey: qk.admin.fees.config(),
+    queryFn: () => adminApi.listFeeConfigs(),
+    enabled: !!token,
+  });
+}
+
+export function useUpdateFeeConfig() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ kind, body }: { kind: FeeKind; body: UpdateFeeConfigBody }) =>
+      adminApi.updateFeeConfig(kind, body),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: qk.admin.fees.config() });
+    },
+  });
+}
+
+// ── Company funding cap ────────────────────────────────────────────────
+
+export function useSetCompanyFundingCap() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      companyId,
+      body,
+    }: {
+      companyId: string;
+      body: SetFundingCapBody;
+    }) => adminApi.setCompanyFundingCap(companyId, body),
+    onSuccess: (_r, { companyId }) => {
+      void qc.invalidateQueries({
+        queryKey: qk.admin.companies.detail(companyId),
+      });
+      void qc.invalidateQueries({ queryKey: qk.admin.companies.all });
     },
   });
 }

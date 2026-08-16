@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "motion/react";
 import Link from "next/link";
 import {
   ArrowLeft,
+  Banknote,
   Building2,
   Users,
   ShieldCheck,
@@ -17,9 +18,11 @@ import {
   useAdminCompany,
   useApproveCompanyKyc,
   useRejectCompanyKyc,
+  useSetCompanyFundingCap,
 } from "@/lib/hooks/api/useAdmin";
+import type { CompanyDetail } from "@/lib/api/types";
 import { StatusBadge } from "@/components/molecules/StatusBadge";
-import { formatDate, formatRelativeTime } from "@/lib/format";
+import { formatDate, formatNaira, formatRelativeTime } from "@/lib/format";
 import { useToast } from "@/hooks/useToast";
 import { cn } from "@/lib/utils";
 
@@ -235,6 +238,10 @@ export default function CompanyDetailPage({
                   </div>
                 </div>
               </div>
+
+              <div className="md:col-span-2">
+                <FundingCapCard company={company} />
+              </div>
             </div>
           )}
 
@@ -338,6 +345,123 @@ export default function CompanyDetailPage({
           )}
         </motion.div>
       </AnimatePresence>
+    </div>
+  );
+}
+
+/**
+ * Admin-controlled funding limit: the max a company may request per project,
+ * decided from its audited financials and current valuation report. Saved via
+ * PATCH /admin/companies/:id/funding-cap; funding requests above the cap are
+ * rejected at creation and re-checked at approval.
+ */
+function FundingCapCard({ company }: { company: CompanyDetail }) {
+  const toast = useToast();
+  const setCap = useSetCompanyFundingCap();
+  const [cap, setCapValue] = useState(company.fundingCap ?? "");
+  const [valuation, setValuation] = useState(company.valuationAmount ?? "");
+  const [notes, setNotes] = useState(company.fundingCapNotes ?? "");
+
+  const dirty =
+    cap !== (company.fundingCap ?? "") ||
+    valuation !== (company.valuationAmount ?? "") ||
+    notes !== (company.fundingCapNotes ?? "");
+
+  const handleSave = async () => {
+    try {
+      await setCap.mutateAsync({
+        companyId: company.id,
+        body: {
+          fundingCap: cap.trim() === "" ? null : Number(cap),
+          valuationAmount: valuation.trim() === "" ? null : Number(valuation),
+          notes,
+        },
+      });
+      toast.success(
+        "Funding limit saved",
+        cap.trim() === ""
+          ? `${company.name} has no funding cap set`
+          : `${company.name} can now request up to ${formatNaira(Number(cap))} per project`,
+      );
+    } catch (e) {
+      toast.error(
+        "Could not save limit",
+        (e as { message?: string })?.message ?? "Please try again",
+      );
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-neutral-200 bg-surface p-5">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div>
+          <p className="text-xs font-medium text-neutral-500 uppercase tracking-wider inline-flex items-center gap-1.5">
+            <Banknote className="h-3.5 w-3.5" /> Funding Limit
+          </p>
+          <p className="text-[11px] text-neutral-400 mt-1 max-w-lg">
+            Maximum this company can request per project, based on its financial
+            audit and current valuation report. Leave blank for no limit.
+          </p>
+        </div>
+        {company.fundingCapSetAt && (
+          <p className="text-[11px] text-neutral-400">
+            Last set {formatRelativeTime(company.fundingCapSetAt)}
+          </p>
+        )}
+      </div>
+
+      <div className="mt-4 grid gap-4 md:grid-cols-2">
+        <div className="space-y-1.5">
+          <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
+            Funding cap (₦)
+          </label>
+          <input
+            type="number"
+            min={0}
+            step={0.01}
+            value={cap}
+            placeholder="No limit"
+            onChange={(e) => setCapValue(e.target.value)}
+            className="w-full h-11 rounded-xl border border-neutral-200 bg-surface px-4 text-sm focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/5 transition-all"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
+            Current valuation (₦)
+          </label>
+          <input
+            type="number"
+            min={0}
+            step={0.01}
+            value={valuation}
+            placeholder="From valuation report"
+            onChange={(e) => setValuation(e.target.value)}
+            className="w-full h-11 rounded-xl border border-neutral-200 bg-surface px-4 text-sm focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/5 transition-all"
+          />
+        </div>
+        <div className="md:col-span-2 space-y-1.5">
+          <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
+            Rationale
+          </label>
+          <textarea
+            value={notes}
+            rows={2}
+            placeholder="e.g. FY2025 audited revenue ₦120m, valuation report by XYZ Advisors (Jun 2026) — cap at 25% of valuation"
+            onChange={(e) => setNotes(e.target.value)}
+            className="w-full rounded-xl border border-neutral-200 bg-surface px-4 py-3 text-sm focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/5 transition-all resize-none"
+          />
+        </div>
+      </div>
+
+      <div className="mt-4 flex justify-end">
+        <button
+          onClick={handleSave}
+          disabled={!dirty || setCap.isPending}
+          className="h-9 px-4 rounded-lg bg-neutral-900 text-white text-xs font-bold hover:bg-neutral-800 disabled:opacity-40 transition-all"
+        >
+          {setCap.isPending ? "Saving…" : "Save limit"}
+        </button>
+      </div>
     </div>
   );
 }

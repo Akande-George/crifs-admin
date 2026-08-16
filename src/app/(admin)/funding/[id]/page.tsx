@@ -11,6 +11,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import {
+  useAdminCompany,
   useAdminFundingRequests,
   useApproveFundingRequest,
   useRejectFundingRequest,
@@ -49,6 +50,12 @@ export default function FundingDetailPage({
   const rerun = useRerunFundingAi();
   const toast = useToast();
   const [notes, setNotes] = useState("");
+
+  // Company detail carries the admin-set funding cap so reviewers see
+  // requested-vs-limit before approving.
+  const { data: company } = useAdminCompany(fr?.company.id ?? "");
+  const cap = company?.fundingCap ? Number(company.fundingCap) : null;
+  const overCap = cap !== null && fr ? Number(fr.targetAmount) > cap : false;
 
   if (isLoading) {
     return (
@@ -140,8 +147,32 @@ export default function FundingDetailPage({
         <div className="grid grid-cols-3 gap-4 mt-5">
           <div>
             <p className="text-xs text-neutral-500">Target</p>
-            <p className="text-lg font-semibold text-neutral-900">
+            <p
+              className={cn(
+                "text-lg font-semibold",
+                overCap ? "text-danger-600" : "text-neutral-900",
+              )}
+            >
               {formatNaira(Number(fr.targetAmount))}
+            </p>
+            <p className="text-[11px] mt-0.5 text-neutral-400">
+              {cap === null ? (
+                <>
+                  No funding cap set —{" "}
+                  <Link
+                    href={`/companies/${fr.company.id}`}
+                    className="text-brand-500 hover:text-brand-600"
+                  >
+                    set one
+                  </Link>
+                </>
+              ) : overCap ? (
+                <span className="text-danger-600 font-medium">
+                  Exceeds the {formatNaira(cap)} cap — raise it or reject
+                </span>
+              ) : (
+                <>Within the {formatNaira(cap)} cap</>
+              )}
             </p>
           </div>
           <div>

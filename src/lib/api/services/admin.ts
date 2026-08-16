@@ -130,6 +130,39 @@ export const adminApi = {
     );
     return data.data;
   },
+
+  // ── Platform fees ─────────────────────────────────────────────────────
+  async listFeeConfigs(): Promise<FeeConfig[]> {
+    const { data } = await apiClient.get<ApiResponse<FeeConfig[]>>(
+      "/admin/fees/config",
+    );
+    return data.data;
+  },
+  async updateFeeConfig(kind: FeeKind, body: UpdateFeeConfigBody) {
+    const { data } = await apiClient.patch<ApiResponse<FeeConfig>>(
+      `/admin/fees/config/${kind}`,
+      body,
+    );
+    return data.data;
+  },
+
+  // ── Company funding cap ───────────────────────────────────────────────
+  async setCompanyFundingCap(companyId: string, body: SetFundingCapBody) {
+    const { data } = await apiClient.patch<
+      ApiResponse<
+        Pick<
+          CompanyDetail,
+          | "id"
+          | "fundingCap"
+          | "valuationAmount"
+          | "fundingCapNotes"
+          | "fundingCapSetById"
+          | "fundingCapSetAt"
+        >
+      >
+    >(`/admin/companies/${companyId}/funding-cap`, body);
+    return data.data;
+  },
   async rerunFundingAi(id: string) {
     const { data } = await apiClient.post<
       ApiResponse<{ queued: boolean; id: string }>
@@ -246,6 +279,34 @@ export const adminApi = {
     return data.data;
   },
 };
+
+// ── Platform fee types ───────────────────────────────────────────────────
+
+export type FeeKind = "DEPOSIT" | "WITHDRAWAL";
+
+// Decimal fields arrive as strings from the API.
+export interface FeeConfig {
+  kind: FeeKind;
+  enabled: boolean;
+  percentBps: number; // basis points: 150 = 1.5%
+  flatAmount: string;
+  minFee: string;
+  maxFee: string | null;
+}
+
+export interface UpdateFeeConfigBody {
+  enabled?: boolean;
+  percentBps?: number;
+  flatAmount?: number;
+  minFee?: number;
+  maxFee?: number | null;
+}
+
+export interface SetFundingCapBody {
+  fundingCap?: number | null;
+  valuationAmount?: number | null;
+  notes?: string;
+}
 
 // ── Funding-request + listing types ──────────────────────────────────────
 

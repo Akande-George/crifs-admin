@@ -5,7 +5,7 @@ import type { NextConfig } from "next";
 // headers apply to every response.
 const API_ORIGIN =
   process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/api\/v1\/?$/, "") ??
-  "https://api.crifs.io";
+  "https://crifs-api-prod.onrender.com";
 
 const securityHeaders = [
   {

@@ -19,7 +19,8 @@ import { useAuthStore } from "@/lib/auth/store";
  */
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "https://api.crifs.io/api/v1";
+  process.env.NEXT_PUBLIC_API_BASE_URL ??
+  "https://crifs-api-prod.onrender.com/api/v1";
 
 export const apiClient: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,

@@ -22,6 +22,7 @@ import {
 } from "@/lib/hooks/api/useAdmin";
 import type { CompanyDetail } from "@/lib/api/types";
 import { StatusBadge } from "@/components/molecules/StatusBadge";
+import { KycProgressCard } from "@/components/molecules/KycProgress";
 import { formatDate, formatNaira, formatRelativeTime } from "@/lib/format";
 import { useToast } from "@/hooks/useToast";
 import { cn } from "@/lib/utils";
@@ -296,7 +297,21 @@ export default function CompanyDetailPage({
           )}
 
           {activeTab === "verifications" && (
-            <div className="rounded-xl border border-neutral-200 bg-surface overflow-hidden">
+            <div className="space-y-6">
+              {/* Derived server-side so the checklist always matches the rule
+                  the app actually gates on. */}
+              <KycProgressCard progress={company.kycProgress} />
+
+              <div className="rounded-xl border border-neutral-200 bg-surface overflow-hidden">
+                <div className="border-b border-neutral-100 px-4 py-3">
+                  <h3 className="text-sm font-bold text-neutral-900">
+                    Check history
+                  </h3>
+                  <p className="text-xs text-neutral-500">
+                    Every row recorded, newest first — superseded retries
+                    included. Only the latest row per type counts toward status.
+                  </p>
+                </div>
               {company.verifications.length === 0 ? (
                 <p className="text-sm text-neutral-400 p-8 text-center">
                   No verifications recorded.
@@ -341,6 +356,7 @@ export default function CompanyDetailPage({
                   </tbody>
                 </table>
               )}
+              </div>
             </div>
           )}
         </motion.div>

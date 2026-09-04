@@ -20,6 +20,7 @@ import {
   useRejectUserKyc,
 } from "@/lib/hooks/api/useAdmin";
 import { StatusBadge } from "@/components/molecules/StatusBadge";
+import { KycProgressCard } from "@/components/molecules/KycProgress";
 import {
   formatNaira,
   formatDate,
@@ -255,7 +256,21 @@ export default function InvestorDetailPage({
           )}
 
           {activeTab === "verifications" && (
-            <div className="rounded-xl border border-neutral-200 bg-surface overflow-hidden">
+            <div className="space-y-6">
+              {/* Derived server-side so the checklist always matches the rule
+                  the app actually gates on. */}
+              <KycProgressCard progress={investor.kycProgress} />
+
+              <div className="rounded-xl border border-neutral-200 bg-surface overflow-hidden">
+                <div className="border-b border-neutral-100 px-4 py-3">
+                  <h3 className="text-sm font-bold text-neutral-900">
+                    Check history
+                  </h3>
+                  <p className="text-xs text-neutral-500">
+                    Every row recorded, newest first — superseded retries
+                    included. Only the latest row per type counts toward status.
+                  </p>
+                </div>
               {investor.verifications.length === 0 ? (
                 <p className="text-sm text-neutral-400 p-8 text-center">
                   No verifications recorded.
@@ -300,6 +315,7 @@ export default function InvestorDetailPage({
                   </tbody>
                 </table>
               )}
+              </div>
             </div>
           )}
 

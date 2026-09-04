@@ -43,6 +43,49 @@ export type KycVerificationType =
   | "LIVENESS"
   | "MANUAL";
 
+/** Where one KYC level stands. NOT_STARTED = never attempted. */
+export type KycStepStatus = "PASSED" | "FAILED" | "PENDING" | "NOT_STARTED";
+
+export interface KycStep {
+  key: string;
+  label: string;
+  description: string;
+  /** Required steps gate VERIFIED; optional ones are informational. */
+  required: boolean;
+  status: KycStepStatus;
+  /** Any one of these check types satisfies the step. */
+  accepts: KycVerificationType[];
+  satisfiedBy: KycVerificationType | null;
+  provider: string | null;
+  /** Rows ever written for this step — retries included. */
+  attempts: number;
+  lastAttemptAt: string | null;
+  completedAt: string | null;
+  notes: string | null;
+}
+
+/** Headline numbers only — what list endpoints return. */
+export interface KycProgressSummary {
+  status: KycStatus;
+  /** 0–100 over required steps. */
+  percent: number;
+  requiredPassed: number;
+  requiredTotal: number;
+  /** Labels of required steps not yet passed. */
+  blockedBy: string[];
+  /** Labels of steps that FAILED — these reject even when optional. */
+  failedSteps: string[];
+  /** Set when an admin approved or rejected by hand. */
+  manualOverride: "PASSED" | "FAILED" | null;
+  lastActivityAt: string | null;
+}
+
+/** Full per-level breakdown — what detail endpoints return. */
+export interface KycProgress extends KycProgressSummary {
+  subject: "INVESTOR" | "COMPANY";
+  steps: KycStep[];
+}
+
 export interface UserListItem {
   id: string;
   name: string;
@@ -55,6 +98,7 @@ export interface UserListItem {
     locked: string;
     currency: string;
   } | null;
+  kycProgress: KycProgressSummary;
 }
 
 export interface UserDetail extends UserListItem {
@@ -69,6 +113,7 @@ export interface UserDetail extends UserListItem {
   } | null;
   bankAccounts: BankAccount[];
   verifications: KycVerification[];
+  kycProgress: KycProgress;
   company: CompanyDetail | null;
 }
 
@@ -113,6 +158,7 @@ export interface CompanyListItem {
   createdAt: string;
   owner: { id: string; name: string; email: string };
   _count: { directors: number; verifications: number };
+  kycProgress: KycProgressSummary;
 }
 
 export interface CompanyDetail {
@@ -138,6 +184,7 @@ export interface CompanyDetail {
   };
   directors: Director[];
   verifications: KycVerification[];
+  kycProgress: KycProgress;
 }
 
 export type WithdrawalStatus =

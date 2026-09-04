@@ -10,8 +10,9 @@ import type { Role } from "@/lib/zod/admin";
  *
  * These are a UX affordance, not a security control. The admin dashboard is a
  * static browser bundle, so anything decided here can be edited by whoever is
- * holding the browser — `api.crifs.io` is the only thing that actually
- * enforces authorization, via RolesGuard on every /admin/* controller.
+ * holding the browser — the API at `crifs-api-prod.onrender.com` is the only
+ * thing that actually enforces authorization, via RolesGuard on every
+ * /admin/* controller.
  *
  * The role comes from the verified session rather than the mock store, which
  * was writable from the client and shipped with a role switcher. Note the

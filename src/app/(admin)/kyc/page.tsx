@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
   ShieldCheck,
@@ -21,6 +22,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { StatusBadge } from "@/components/molecules/StatusBadge";
+import { KycProgressBar } from "@/components/molecules/KycProgress";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -37,6 +39,7 @@ import {
   useRejectCompanyKyc,
   useRejectUserKyc,
 } from "@/lib/hooks/api/useAdmin";
+import type { KycProgressSummary, KycStatus } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 
 type Type = "COMPANY" | "INVESTOR";
@@ -46,22 +49,31 @@ type Row = {
   type: Type;
   status: string;
   date: string;
+  progress: KycProgressSummary;
 };
+
+const STATUS_FILTERS = ["ALL", "PENDING", "UNVERIFIED", "VERIFIED", "REJECTED"] as const;
+type StatusFilter = (typeof STATUS_FILTERS)[number];
 
 export default function KYCQueuePage() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
 
   // Fetch pending investors + pending companies concurrently. Backend
   // handles pagination server-side; page size chosen to comfortably cover
   // one screenful with room for filtering.
+  // The status filter drives the query, not just a client-side pass. Pinning
+  // both fetches to PENDING (as this page used to) meant selecting Verified or
+  // Rejected always rendered an empty table.
+  const kycStatus =
+    statusFilter === "ALL" ? undefined : (statusFilter as KycStatus);
   const investorsQuery = useAdminUsers({
     role: "INVESTOR",
-    kycStatus: "PENDING",
+    kycStatus,
     perPage: 100,
   });
   const companiesQuery = useAdminCompanies({
-    kycStatus: "PENDING",
+    kycStatus,
     perPage: 100,
   });
 
@@ -77,6 +89,7 @@ export default function KYCQueuePage() {
       type: "INVESTOR",
       status: u.kycStatus,
       date: u.createdAt,
+      progress: u.kycProgress,
     }));
     const companies = (companiesQuery.data?.data ?? []).map<Row>((c) => ({
       id: c.id,
@@ -84,6 +97,7 @@ export default function KYCQueuePage() {
       type: "COMPANY",
       status: c.kycStatus,
       date: c.createdAt,
+      progress: c.kycProgress,
     }));
     return [...investors, ...companies].sort(
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
@@ -93,11 +107,9 @@ export default function KYCQueuePage() {
   const filteredRows = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return rows.filter((r) => {
-      const matchesSearch = !q || r.name.toLowerCase().includes(q);
-      const matchesStatus = statusFilter === "ALL" || r.status === statusFilter;
-      return matchesSearch && matchesStatus;
+      return !q || r.name.toLowerCase().includes(q);
     });
-  }, [rows, searchQuery, statusFilter]);
+  }, [rows, searchQuery]);
 
   const isLoading = investorsQuery.isLoading || companiesQuery.isLoading;
 
@@ -153,18 +165,13 @@ export default function KYCQueuePage() {
               Status: {statusFilter === "ALL" ? "All" : statusFilter}
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem onClick={() => setStatusFilter("ALL")}>
-                All
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setStatusFilter("PENDING")}>
-                Pending
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setStatusFilter("VERIFIED")}>
-                Verified
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setStatusFilter("REJECTED")}>
-                Rejected
-              </DropdownMenuItem>
+              {STATUS_FILTERS.map((f) => (
+                <DropdownMenuItem key={f} onClick={() => setStatusFilter(f)}>
+                  {f === "ALL"
+                    ? "All"
+                    : f.charAt(0) + f.slice(1).toLowerCase()}
+                </DropdownMenuItem>
+              ))}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -179,6 +186,9 @@ export default function KYCQueuePage() {
                 <TableHead className="w-[300px]">Entity</TableHead>
                 <TableHead className="hidden md:table-cell">Type</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead className="hidden sm:table-cell w-[200px]">
+                  Level progress
+                </TableHead>
                 <TableHead className="hidden lg:table-cell">
                   Submission Date
                 </TableHead>
@@ -189,7 +199,7 @@ export default function KYCQueuePage() {
               {isLoading ? (
                 <TableRow>
                   <TableCell
-                    colSpan={5}
+                    colSpan={6}
                     className="h-32 text-center text-neutral-500"
                   >
                     Loading…
@@ -232,6 +242,9 @@ export default function KYCQueuePage() {
                     <TableCell>
                       <StatusBadge status={item.status} />
                     </TableCell>
+                    <TableCell className="hidden sm:table-cell">
+                      <KycProgressBar progress={item.progress} />
+                    </TableCell>
                     <TableCell className="hidden lg:table-cell">
                       <div className="space-y-0.5">
                         <p className="text-xs font-medium text-neutral-700">
@@ -251,13 +264,19 @@ export default function KYCQueuePage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
+                        {/* Plain Link, not <Button asChild> — this Button is
+                            base-ui, which has no asChild slot. */}
+                        <Link
+                          href={
+                            item.type === "COMPANY"
+                              ? `/companies/${item.id}`
+                              : `/investors/${item.id}`
+                          }
+                          aria-label={`Open ${item.name}`}
+                          className="flex h-8 w-8 items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
                         >
-                          <Eye className="h-4 w-4 text-neutral-500" />
-                        </Button>
+                          <Eye className="h-4 w-4" />
+                        </Link>
                         <DropdownMenu>
                           <DropdownMenuTrigger className="flex h-8 w-8 items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600 transition-colors">
                             <MoreHorizontal className="h-4 w-4" />
@@ -286,7 +305,7 @@ export default function KYCQueuePage() {
               ) : (
                 <TableRow>
                   <TableCell
-                    colSpan={5}
+                    colSpan={6}
                     className="h-32 text-center text-neutral-500"
                   >
                     No pending verifications.
